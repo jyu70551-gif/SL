@@ -1,11 +1,13 @@
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.engine import URL
 
-from app import auth
-from app.config import MIN_PASSWORD_LENGTH, get_settings
-from app.db import Base, make_engine, make_session_factory
+from app import auth, uploads
+from app.config import MIN_PASSWORD_LENGTH, build_database_url, get_settings
+from app.db import make_engine, make_session_factory, verify_connection, verify_migrated
 from app.models import AuthState
 from app.security import hash_password
 
@@ -30,13 +32,22 @@ def seed_password(session_factory, initial_password: str) -> None:
         db.commit()
 
 
-def create_app() -> FastAPI:
+def create_app(database_url: str | URL | None = None) -> FastAPI:
+    """database_url은 시험에서만 직접 넘깁니다. 서비스는 backend/.env 의 DB_* 값을 씁니다."""
     settings = get_settings()
+    if os.getenv("DATABASE_URL"):
+        logger.warning(
+            "backend/.env 의 DATABASE_URL 항목은 더 이상 쓰이지 않아요. DB_HOST 등 DB_* 항목을 채워 주세요."
+        )
+
     # 데이터 주소 목록(문서 화면)을 바깥에 보여주지 않습니다.
     app = FastAPI(title="SL", docs_url=None, redoc_url=None, openapi_url=None)
 
-    engine = make_engine(settings.database_url)
-    Base.metadata.create_all(engine)
+    engine = make_engine(database_url if database_url is not None else build_database_url())
+    verify_connection(engine)
+    # 테이블은 서버가 만들지 않고 Alembic(alembic upgrade head)으로만 만듭니다.
+    verify_migrated(engine)
+    app.state.engine = engine
     app.state.session_factory = make_session_factory(engine)
     seed_password(app.state.session_factory, settings.initial_password)
 
@@ -52,4 +63,5 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(auth.router)
+    app.include_router(uploads.router)
     return app

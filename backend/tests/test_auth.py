@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import auth
-from app.main import create_app
+from tests.conftest import build_app
 
 TEST_PASSWORD = "test-password-123"
 
@@ -30,9 +30,8 @@ def clock(monkeypatch):
 
 @pytest.fixture
 def client(tmp_path, monkeypatch, clock):
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'test.db'}")
     monkeypatch.setenv("INITIAL_PASSWORD", TEST_PASSWORD)
-    with TestClient(create_app()) as c:
+    with TestClient(build_app(tmp_path)) as c:
         yield c
 
 
@@ -122,16 +121,14 @@ def test_password_is_not_stored_as_plain_text(client):
 
 
 def test_login_asks_to_set_password_when_none_is_configured(tmp_path, monkeypatch, clock):
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'empty.db'}")
     monkeypatch.setenv("INITIAL_PASSWORD", "")
-    with TestClient(create_app()) as c:
+    with TestClient(build_app(tmp_path, "empty.db")) as c:
         res = c.post("/api/auth/login", json={"password": "anything-goes"})
     assert res.status_code == 503
     assert res.json()["detail"]["code"] == "not_configured"
 
 
 def test_too_short_initial_password_stops_the_server(tmp_path, monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'short.db'}")
     monkeypatch.setenv("INITIAL_PASSWORD", "short")
     with pytest.raises(RuntimeError):
-        create_app()
+        build_app(tmp_path, "short.db")

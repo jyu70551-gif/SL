@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import BigInteger, Date, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -26,3 +26,29 @@ class AuthSession(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class SalesUpload(Base):
+    """올린 파일 한 개 = 하루치. 날짜마다 하나만 있고, 같은 날짜를 올리면 덮어씁니다."""
+
+    __tablename__ = "sales_uploads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    sales_date: Mapped[date] = mapped_column(Date, unique=True, index=True)
+    cutoff_hour: Mapped[int] = mapped_column(Integer)  # "몇 시까지의 매출인지" (0~23)
+    filename: Mapped[str] = mapped_column(String(255), default="")
+    row_count: Mapped[int] = mapped_column(Integer)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class DailySale(Base):
+    """하루치 파일의 대분류 한 줄. 파일의 "합계" 줄은 저장하지 않습니다."""
+
+    __tablename__ = "daily_sales"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    sales_date: Mapped[date] = mapped_column(Date, index=True)
+    product_code: Mapped[str] = mapped_column(String(32))
+    category: Mapped[str] = mapped_column(String(64))
+    quantity: Mapped[int] = mapped_column(Integer)
+    amount: Mapped[int] = mapped_column(BigInteger)

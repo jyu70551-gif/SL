@@ -33,6 +33,59 @@ npm.cmd install
 
 ---
 
+## Supabase(데이터 보관함) 연결하기
+
+데이터는 Supabase(PostgreSQL)에 저장합니다. 서버는 **SQLite로 자동 연결하지 않습니다.** 아래 값이 없거나 틀리면 이유를 알려 주고 멈춥니다.
+
+### 1. `backend/.env`에 연결 정보 입력
+
+Supabase 대시보드 → 프로젝트 선택 → 위쪽 **Connect** 버튼 → **Session pooler** 항목을 보면서 아래 다섯 칸을 채웁니다. 값만 적고, 따옴표나 `postgresql://`는 넣지 않습니다.
+
+| 항목 | 넣을 값 |
+|---|---|
+| `DB_HOST` | Session pooler의 주소 (예: `aws-0-ap-northeast-2.pooler.supabase.com`, 프로젝트마다 다름) |
+| `DB_PORT` | `5432` |
+| `DB_NAME` | `postgres` |
+| `DB_USER` | `postgres.프로젝트ID` 형태 (그냥 `postgres`가 아님) |
+| `DB_PASSWORD` | 프로젝트를 만들 때 정한 **데이터베이스 비밀번호** (SL 비밀번호나 Supabase 계정 비밀번호가 아님) |
+
+> 예전 `.env`에 있던 `DATABASE_URL` 줄은 더 이상 쓰이지 않습니다. 지워도 됩니다.
+> 비밀번호는 채팅에 적지 말고 `.env`에만 넣으세요. `.env`는 깃에 올라가지 않습니다.
+
+### 2. 연결이 되는지 먼저 점검하기 (선택)
+
+```powershell
+cd C:\Users\aicam\Desktop\SL\backend
+.\.venv\Scripts\python.exe check_db.py
+```
+
+"DB에 연결됐어요"가 나오면 접속 정보가 맞는 것입니다. 틀렸다면 무엇을 확인해야 하는지 알려 줍니다. (데이터는 바꾸지 않습니다)
+
+### 3. 테이블 만들기 (명령 하나)
+
+```powershell
+cd C:\Users\aicam\Desktop\SL\backend
+.\.venv\Scripts\python.exe -m alembic upgrade head
+```
+
+- 필요한 테이블 4개(비밀번호, 로그인 기록, 올린 파일, 대분류별 매출)가 만들어집니다.
+- **이미 적용한 변경은 다시 적용되지 않습니다.** 같은 명령을 여러 번 실행해도 안전합니다.
+- 중간에 실패하면 아무것도 적용되지 않습니다.
+- 연결 없이 만들어질 SQL만 보고 싶으면 명령 끝에 `--sql`을 붙입니다.
+
+### 4. 서버를 다시 켜서 확인하기
+
+1. 켜져 있는 서버 창에서 `Ctrl + C`로 끕니다.
+2. 서버를 다시 켭니다. (아래 "매번 켜는 방법")
+3. 브라우저에서 http://localhost:5173 을 열어 `.env`의 `INITIAL_PASSWORD` 비밀번호로 들어갑니다. (처음 켤 때 새 데이터 보관함에 이 비밀번호가 저장됩니다)
+4. **파일 올리기** 화면에서 `backend/tests/fixtures/sample_2026-02-25.csv`를 올립니다.
+5. 올려 둔 날짜 목록에 날짜가 보이면 Supabase에 저장된 것입니다. Supabase 대시보드의 **Table Editor**에서도 `sales_uploads`, `daily_sales` 표를 볼 수 있습니다.
+
+> 이 프로젝트에는 회원가입이 없습니다. 비밀번호 로그인과 파일 올리기로 확인합니다.
+> 예전 SQLite 데이터(`backend/sl_dev.db`)는 그대로 남아 있지만 더 이상 쓰이지 않고, 새 데이터부터 Supabase에 저장됩니다.
+
+---
+
 ## 매번 켜는 방법
 
 **창 1 — 서버**
@@ -54,6 +107,16 @@ npm.cmd run dev
 그다음 브라우저에서 **http://localhost:5173** 을 엽니다. 비밀번호 화면이 나옵니다.
 
 끄려면 각 창에서 `Ctrl + C` 를 누릅니다.
+
+---
+
+## 새 기능이 보이지 않을 때
+
+서버는 **켤 때 읽은 코드로 계속 동작**합니다. 코드가 바뀐 뒤에는 서버 창에서 `Ctrl + C`로 끄고 다시 켜야 새 기능이 반영됩니다. (화면은 자동으로 새로 고쳐집니다)
+
+## 파일 올리기를 시험해 보고 싶을 때
+
+`backend/tests/fixtures/` 폴더에 2월 24일·25일 날짜의 시험용 CSV(숫자는 가상)가 있습니다. **파일 올리기** 화면에서 이 파일을 골라 시각을 선택하고 올려 보세요. 같은 파일을 한 번 더 올리면 덮어쓰기 확인 창이 나옵니다.
 
 ---
 
@@ -112,5 +175,6 @@ cd backend
 
 ## 데이터 보관 위치
 
-- 개발 중에는 `backend/sl_dev.db`(SQLite) 파일에 저장됩니다. 지우면 처음 상태로 돌아갑니다.
-- `backend/.env`의 `DATABASE_URL` 한 줄로 Supabase로 바꿉니다. (Phase 2에서 연결합니다)
+- 서비스의 데이터는 **Supabase(PostgreSQL)** 에 저장됩니다. (위 "Supabase 연결하기" 참고)
+- `backend/sl_dev.db`(SQLite)는 예전 개발용 파일입니다. 지우지 않고 남겨 두었지만 서버가 사용하지 않습니다.
+- 시험(`pytest`)은 임시 SQLite 파일에서만 돌고, 실제 Supabase에는 닿지 않습니다.

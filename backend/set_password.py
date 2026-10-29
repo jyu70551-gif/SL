@@ -10,8 +10,15 @@ import sys
 
 from sqlalchemy import delete
 
-from app.config import MIN_PASSWORD_LENGTH, get_settings
-from app.db import Base, make_engine, make_session_factory
+from app.config import MIN_PASSWORD_LENGTH, DbConfigError, build_database_url
+from app.db import (
+    DbConnectionError,
+    DbNotMigratedError,
+    make_engine,
+    make_session_factory,
+    verify_connection,
+    verify_migrated,
+)
 from app.models import AuthSession, AuthState
 from app.security import hash_password
 
@@ -25,8 +32,13 @@ def main() -> int:
         print("두 번 입력한 비밀번호가 서로 다릅니다.")
         return 1
 
-    engine = make_engine(get_settings().database_url)
-    Base.metadata.create_all(engine)
+    try:
+        engine = make_engine(build_database_url())
+        verify_connection(engine)
+        verify_migrated(engine)
+    except (DbConfigError, DbConnectionError, DbNotMigratedError) as error:
+        print(error)
+        return 1
     with make_session_factory(engine)() as db:
         state = db.get(AuthState, 1)
         if state is None:
