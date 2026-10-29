@@ -1,0 +1,19 @@
+# Secrets (keep the example file tracked)
+.env
+.env.*
+!.env.example
+
+# Installed dependencies
+.venv/
+node_modules/
+
+# Build output
+dist/
+__pycache__/
+
+# Local test database (SQLite)
+*.db
+*.sqlite3
+
+# Logs
+*.log
