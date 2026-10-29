@@ -3,7 +3,7 @@ from sqlalchemy.engine import URL, Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-REQUIRED_TABLE = "auth_state"
+REQUIRED_TABLES = ["auth_state", "reviewed_anomalies"]  # 가장 최근에 추가한 테이블까지 확인합니다
 
 CONNECTION_CHECKLIST = [
     "DB_HOST: Supabase의 Connect 화면에서 'Session pooler' 항목의 주소(…pooler.supabase.com)인지",
@@ -75,8 +75,12 @@ def verify_connection(engine: Engine) -> None:
 
 
 def verify_migrated(engine: Engine) -> None:
-    if not inspect(engine).has_table(REQUIRED_TABLE):
+    inspector = inspect(engine)
+    ready = all(inspector.has_table(name) for name in REQUIRED_TABLES) and "reasons" in {
+        c["name"] for c in inspector.get_columns("reviewed_anomalies")
+    }
+    if not ready:
         raise DbNotMigratedError(
-            "DB에는 연결됐지만 테이블이 아직 없어요. backend 폴더에서 "
+            "DB에는 연결됐지만 필요한 테이블이나 열이 아직 없어요(새로 추가된 항목이 있을 수 있어요). backend 폴더에서 "
             "'python -m alembic upgrade head' 를 먼저 실행해 주세요."
         )

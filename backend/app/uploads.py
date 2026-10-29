@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app import auth
 from app.auth import get_db, require_auth
-from app.models import DailySale, SalesUpload
+from app.models import DailySale, ReviewedAnomaly, SalesUpload
 from app.sales_file import FileProblems, parse_sales_csv
 
 router = APIRouter(prefix="/api/uploads", tags=["uploads"], dependencies=[Depends(require_auth)])
@@ -62,8 +62,8 @@ def upload_sales_file(body: UploadBody, db: Session = Depends(get_db)):
     # 전부 저장되거나 전혀 저장되지 않게 한 번에 처리합니다. (spec 0-3)
     try:
         if existing is not None:
-            # 덮어쓰면 이 날짜의 "확인함·정상" 기록도 지워야 합니다. (확인 기록은 Phase 4에서 만들고,
-            # 만들 때 여기에 함께 지우는 코드를 넣습니다.)
+            # 덮어쓰면 이 날짜의 "확인함·정상" 기록도 지우고, 새 숫자로 이상 여부를 다시 판단합니다.
+            db.execute(delete(ReviewedAnomaly).where(ReviewedAnomaly.sales_date == parsed.sales_date))
             db.execute(delete(DailySale).where(DailySale.sales_date == parsed.sales_date))
             upload = existing
         else:

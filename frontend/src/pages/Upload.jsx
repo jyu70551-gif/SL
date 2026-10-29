@@ -159,7 +159,7 @@ export default function Upload() {
             {dateLabel(confirm.date)} 데이터가 이미 있어요.
           </p>
           <p className="muted">
-            덮어쓰면 그 날짜에 눌러 둔 &lsquo;확인함·정상&rsquo; 기록이 지워지고, 새 숫자로 이상 여부를
+            덮어쓰면 그 날짜의 &lsquo;운영 상황 기록&rsquo;이 지워지고, 새 숫자로 판매 변화가 큰 날을
             다시 판단해요. 지금 저장된 데이터는 {hourLabel(confirm.cutoffHour)}까지의 매출이에요.
           </p>
           <div className="button-row">

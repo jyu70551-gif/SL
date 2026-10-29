@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Date, DateTime, Integer, String
+from sqlalchemy import BigInteger, Date, DateTime, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -52,3 +52,18 @@ class DailySale(Base):
     category: Mapped[str] = mapped_column(String(64))
     quantity: Mapped[int] = mapped_column(Integer)
     amount: Mapped[int] = mapped_column(BigInteger)
+
+
+class ReviewedAnomaly(Base):
+    """점주가 "확인함·정상"으로 답한 기록. 대분류 + 날짜 하나가 한 건입니다."""
+
+    __tablename__ = "reviewed_anomalies"
+    __table_args__ = (UniqueConstraint("category", "sales_date", name="uq_reviewed_category_date"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    category: Mapped[str] = mapped_column(String(64))
+    sales_date: Mapped[date] = mapped_column(Date, index=True)
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime)
+    # 점주가 고른 당시 특이사항(쉼표로 이은 고정 키)과 메모. 점주가 직접 적은 기록이며 통계로 입증된 원인이 아닙니다.
+    reasons: Mapped[str] = mapped_column(String(255), default="", server_default="")
+    memo: Mapped[str] = mapped_column(String(500), default="", server_default="")

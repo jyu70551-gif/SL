@@ -216,3 +216,11 @@ def test_missing_instant_food_category_counts_as_zero(client):
     add_day(client, TODAY, {"음료": (3, 3000)})  # 간편식사 줄이 파일에 없음
     item = summary(client)["instant_food"][0]
     assert item["today_quantity"] == 0
+
+
+def test_home_reports_the_dates_used_for_the_baseline(client):
+    for day in WEDNESDAYS:
+        add_day(client, day, {"담배": (10, 50000)})
+    add_day(client, TODAY, {"담배": (10, 50000)})
+    comparison = summary(client)["comparison"]
+    assert comparison["used_dates"] == [d.isoformat() for d in WEDNESDAYS[:4]]  # 최근 4번, 최근 날짜부터

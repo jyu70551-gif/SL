@@ -84,6 +84,7 @@ def build_home_summary(db: Session) -> dict:
     needed_more = max(0, MIN_SAME_WEEKDAY_DAYS - len(used))
     common = {
         "weeks_used": len(used),
+        "used_dates": [d.isoformat() for d in used_dates],
         "needed_more": needed_more,
         "min_days": MIN_SAME_WEEKDAY_DAYS,
         "excluded_other_hour": len(earlier_same_weekday) - len(same_hour),

@@ -1,8 +1,12 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth.jsx";
 import Layout from "./components/Layout.jsx";
+import Category from "./pages/Category.jsx";
 import Home from "./pages/Home.jsx";
 import Login from "./pages/Login.jsx";
+import Reviewed from "./pages/Reviewed.jsx";
+import SalesAnalysis from "./pages/SalesAnalysis.jsx";
+import SalesDetail from "./pages/SalesDetail.jsx";
 import Settings from "./pages/Settings.jsx";
 import Upload from "./pages/Upload.jsx";
 
@@ -32,6 +36,10 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<Home />} />
+        <Route path="category/:name" element={<Category />} />
+        <Route path="reviewed" element={<Reviewed />} />
+        <Route path="sales" element={<SalesDetail />} />
+        <Route path="sales/analysis" element={<SalesAnalysis />} />
         <Route path="upload" element={<Upload />} />
         <Route path="settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />

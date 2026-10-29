@@ -1,20 +1,24 @@
 /* SL 디자인 틀 (docs/design.md). 어두운 테마로 고정합니다. */
 :root {
   color-scheme: dark;
-  --bg: #0b0e17;
-  --surface: #121626;
-  --surface-2: #181d33;
-  --line: #232a40;
-  --text: #e8ebf5;
-  --muted: #98a2b8;
-  --accent: #7c8cff;
+  --bg: #0c1019; /* 전체 배경 */
+  --surface: #151c2c; /* 카드 배경 */
+  --surface-2: #151c2c;
+  --line: #2a3346; /* 구분선·테두리 */
+  --text: #f3f5fa; /* 핵심 텍스트 */
+  --muted: #b7c0d0; /* 설명 텍스트: 어두운 배경에서도 충분히 밝은 회색 */
+  --accent: #969fff; /* 그래프·선택 상태 */
   --accent-text: #0b0e17;
-  /* 앰버: 대표 행동 버튼, 활성 메뉴, 핵심 요약의 작은 강조에만 씁니다. */
+  /* 앰버: 주요 버튼, 활성 메뉴, 확인 필요 표시에만 씁니다. 연보라는 그래프와 선택 상태에 씁니다. */
   --amber: #f6b94a;
   --amber-text: #1a1204;
   --down: #ff8a8a;
   --up: #5be0a0;
-  --warn: #ff9a7a; /* 앰버와 헷갈리지 않게 붉은 기운이 도는 주황 */
+  /* 매출 변화 방향 색: 증가 민트, 감소 코랄. 방향만 뜻하며 정상·주의 판정 색(회색 ✓, 앰버 ⚠)과 다릅니다. */
+  --rise: #47d7ac;
+  --fall: #ff8a75;
+  --ok: #d3d9e8; /* 정상·기록 완료 표시(✓)는 방향 색과 겹치지 않게 중립색을 씁니다 */
+  --warn: var(--amber); /* 확인 필요 표시. 항상 ⚠ 아이콘과 문구를 함께 씁니다 */
   --radius: 16px;
   --tab-height: 56px;
 }
@@ -25,11 +29,12 @@
 
 body {
   margin: 0;
-  background: radial-gradient(1200px 500px at 50% -200px, #1a2040 0%, var(--bg) 60%) fixed, var(--bg);
+  background: var(--bg);
   color: var(--text);
   /* Pretendard를 먼저 쓰고, 못 불러오면 기기 기본 글꼴을 씁니다. */
   font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI",
     "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-size: 1rem;
   line-height: 1.5;
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
@@ -58,10 +63,6 @@ a {
 }
 
 .page-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
   margin: 8px 0 16px;
 }
 
@@ -142,7 +143,7 @@ a {
 /* ---------- 카드 ---------- */
 
 .card {
-  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 100%);
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px;
@@ -151,18 +152,18 @@ a {
 
 .card-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .card-title {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: 1.15rem;
+  font-weight: 700;
   letter-spacing: -0.01em;
-  color: var(--muted);
+  color: var(--text);
 }
 
 /* 핵심 요약 카드 제목 앞의 작은 앰버 점 */
@@ -177,18 +178,10 @@ a {
   vertical-align: 0.05em;
 }
 
-.card-foot {
-  margin: 12px 0 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
 .card-note {
-  margin: 0;
+  margin: 12px 0 0;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .chip {
@@ -230,180 +223,16 @@ a {
   background: rgba(124, 140, 255, 0.08);
 }
 
-/* ---------- 큰 숫자 ---------- */
 
-.kpi-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.kpi {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 12px;
-}
-
-.kpi-label {
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.kpi-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.3;
-  font-variant-numeric: tabular-nums;
-  word-break: keep-all;
-}
-
-.kpi-unit {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--muted);
-  margin-left: 2px;
-}
-
-.delta {
-  font-size: 0.85rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.delta.up {
-  color: var(--up);
-}
-
-.delta.down {
-  color: var(--down);
-}
-
-.delta.flat {
-  color: var(--muted);
-}
-
-/* ---------- 비교 ---------- */
-
-.compare {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.compare-title {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.compare-row {
-  display: grid;
-  gap: 6px;
-}
-
-.compare-line {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 0.9rem;
-}
-
-.compare-line .muted {
-  font-size: 0.8rem;
-}
-
-.meter {
-  position: relative;
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.meter-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: 999px;
-  background: var(--accent);
-}
-
-/* 평소 값을 가리키는 눈금 */
-.meter-tick {
-  position: absolute;
-  top: -4px;
-  bottom: -4px;
-  width: 3px;
-  margin-left: -1.5px;
-  border-radius: 2px;
-  background: var(--text);
-}
-
-/* 평소 범위 막대: 띠 = 평소 범위, 세로 선 = 오늘 */
-.range-bar {
-  position: relative;
-  height: 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.range-band {
-  position: absolute;
-  top: 3px;
-  bottom: 3px;
-  border-radius: 999px;
-  background: rgba(124, 140, 255, 0.35);
-}
-
-.range-marker {
-  position: absolute;
-  top: -2px;
-  bottom: -2px;
-  width: 4px;
-  margin-left: -2px;
-  border-radius: 2px;
-  background: var(--text);
-}
-
-.food-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.food-row {
-  display: grid;
-  gap: 8px;
-}
-
-.food-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.food-name {
-  font-size: 0.95rem;
-}
-
-.food-qty {
-  font-size: 1.3rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
 
 /* 데이터가 더 필요할 때의 안내 */
 .need-more {
   display: grid;
   gap: 8px;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px dashed var(--line);
+  padding: 16px 0 0;
+  border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
 }
 
 .need-more strong {
@@ -466,7 +295,7 @@ a {
 
 .muted {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .error::before {
@@ -476,7 +305,7 @@ a {
 .error {
   margin: 0;
   color: var(--down);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .success::before {
@@ -597,3 +426,758 @@ a {
   padding: 12px 0;
   border-bottom: 1px solid var(--line);
 }
+
+/* ---------- 확인이 필요한 대분류 · 그래프 ---------- */
+
+.attention-list,
+.day-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 48px;
+  color: var(--accent);
+  font-size: 0.9375rem;
+  text-decoration: none;
+  transition: color 0.16s ease;
+}
+
+.text-link:hover {
+  color: var(--text);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+/* 그래프는 화면 폭 그대로(1단위 = 1px) 그립니다. 선 두께·점 크기·색은 SalesChart.jsx의 CHART_STYLE에서 정합니다. */
+.chart-wrap {
+  width: 100%;
+}
+
+.chart {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.chart-tick {
+  fill: var(--muted);
+  font-size: 12px;
+}
+
+.chart-flag-label {
+  fill: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #151c2c;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.day-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.day-row {
+  display: grid;
+  gap: 4px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.day-row:first-child {
+  padding-top: 0;
+}
+
+.day-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.day-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---------- 홈 · 상세 화면의 수치와 줄 ---------- */
+
+.page-meta {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.card-aside {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* 핵심 수치: 큰 금액 → 금액 차이 → 증가율(보조) */
+.all-clear {
+  margin: 0 0 8px;
+  color: var(--ok);
+}
+
+/* 확인할 사항: 한 줄 전체가 링크, 항목은 얇은 선으로 나눕니다. */
+.attention-row {
+  display: block;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+
+.attention-list li:first-child .attention-row {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+}
+
+.row-chevron {
+  color: var(--muted);
+  font-size: 1.2rem;
+}
+
+.row-amount {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.verdict.warn::before {
+  content: "\26A0\FE0E ";
+}
+
+.verdict.ok::before {
+  content: "\2713 ";
+}
+
+.card-note + .text-link,
+.attention-list + .text-link,
+.all-clear + .text-link {
+  margin-top: 8px;
+}
+
+.day-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.day-date {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.day-amount {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.recorded {
+  color: var(--ok);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.text-button {
+  min-height: 44px;
+  padding: 0 4px;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.text-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- 핵심 수치 ---------- */
+
+.headline {
+  display: grid;
+  gap: 4px;
+}
+
+.headline-label {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+/* 핵심 금액: 가장 크게, 흰색 */
+.headline-value {
+  font-size: 2.125rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-headline {
+  margin: 0 0 16px;
+}
+
+/* 금액 차이 문장 → 증가율(작고 약하게) */
+.diff-line {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-icon {
+  display: inline-block;
+  min-width: 1.1em;
+  color: var(--muted);
+  font-size: 0.8em;
+}
+
+.diff-line.rise,
+.diff-line.rise .diff-icon {
+  color: var(--rise);
+}
+
+.diff-line.fall,
+.diff-line.fall .diff-icon {
+  color: var(--fall);
+}
+
+.diff-line.same,
+.diff-line.same .diff-icon {
+  color: var(--muted);
+}
+
+.pct {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.quantity-line {
+  margin: 16px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.quantity-line strong {
+  color: var(--text);
+  font-size: 1.125rem;
+  margin-left: 4px;
+}
+
+/* ---------- 비교 기준 (짧은 요약 + 펼침) ---------- */
+
+.basis {
+  margin-top: 8px;
+}
+
+.basis-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.basis-summary {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.basis-panel {
+  margin-top: 4px;
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.basis-panel p {
+  margin: 0 0 8px;
+}
+
+.basis-panel strong {
+  color: var(--text);
+}
+
+.basis-list {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+
+/* ---------- 확인할 사항 ---------- */
+
+.attention-group + .attention-group {
+  margin-top: 24px;
+}
+
+.group-title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.row-title {
+  font-size: 1rem;
+}
+
+.row-title strong {
+  font-weight: 700;
+}
+
+.row-date {
+  color: var(--text);
+}
+
+.row-flag {
+  margin-right: 6px;
+  color: var(--amber);
+}
+
+.row-amount {
+  color: #fff;
+}
+
+/* ---------- 집중 관리 식품군 (표) ---------- */
+
+.food-table {
+  display: grid;
+}
+
+.food-row {
+  display: grid;
+  grid-template-columns: minmax(64px, 1fr) 52px 86px minmax(78px, 0.9fr);
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.9375rem;
+}
+
+.food-head {
+  border-top: 0;
+  padding-top: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.food-qty {
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.food-range {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.verdict {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.verdict.warn {
+  color: var(--amber);
+}
+
+.verdict.ok {
+  color: var(--text);
+}
+
+.verdict.none {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.verdict.warn::before {
+  content: "\26A0\FE0E ";
+}
+
+.verdict.ok::before {
+  content: "\2713 ";
+  color: var(--ok);
+}
+
+/* ---------- 그래프 범례와 운영 상황 기록 ---------- */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend svg {
+  flex: none;
+}
+
+.record-form {
+  display: grid;
+  gap: 12px;
+}
+
+.record-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+}
+
+.record-legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.check-row input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+.memo-label {
+  font-size: 0.9375rem;
+  color: var(--muted);
+}
+
+.memo-input {
+  width: 100%;
+  padding: 12px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  resize: vertical;
+}
+
+.record-link {
+  display: grid;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+  min-height: 44px;
+}
+
+.record-reasons,
+.record-memo {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--muted);
+}
+
+/* ---------- 총매출 분석 ---------- */
+
+/* 통계 결과 한 문장: ⚠ 주의는 앰버, ✓ 정상은 중립색 (매출 방향 색과 구분) */
+.verdict-line {
+  margin: 12px 0 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.verdict-line.warn {
+  color: var(--amber);
+}
+
+.verdict-line.warn::before {
+  content: "\26A0\FE0E ";
+}
+
+.verdict-line.ok::before {
+  content: "\2713 ";
+  color: var(--ok);
+}
+
+.stat-list {
+  margin: 0;
+}
+
+.stat-list > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.stat-list > div:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.stat-list dt {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.stat-list dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 키보드 포커스와 짧은 전환 ---------- */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.button,
+.text-button,
+.tab-bar .tab {
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
+}
+
+.icon {
+  flex: none;
+  vertical-align: middle;
+}
+
+/* ---------- 매출 점검 · 분석 상세 (차분한 분석 화면) ---------- */
+/* 제목 22/600, 총매출 36/700, 섹션 제목 18/600, 본문 16/400(줄 높이 1.6), 보조 14/400.
+   모바일 좌우 여백 20px, 섹션 간격 28px, 카드 안 여백 20px. 금액·제목 외에는 굵게 쓰지 않습니다. */
+
+.analysis {
+  padding: 0 4px;
+  line-height: 1.6;
+}
+
+.analysis-top {
+  margin: 4px 0 36px;
+}
+
+.analysis-title {
+  margin: 8px 0 4px;
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.analysis-meta {
+  margin: 0 0 28px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.analysis-total {
+  color: var(--text);
+  font-size: 2.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.analysis .diff-line {
+  margin-top: 8px;
+  font-weight: 500;
+}
+
+.analysis .pct {
+  margin-top: 2px;
+}
+
+/* 총매출과 해석 사이에 충분한 여백 */
+.analysis-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 32px;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.analysis-note p {
+  margin: 0;
+}
+
+.analysis-note .note-icon {
+  margin-top: 4px;
+  color: var(--amber);
+}
+
+.analysis-sub {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.analysis .card {
+  margin-bottom: 28px;
+  padding: 20px;
+}
+
+.analysis .card-head {
+  margin-bottom: 12px;
+}
+
+.analysis .card-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.chart-head .analysis-sub {
+  margin: 0;
+}
+
+.text-button[aria-pressed="true"] {
+  color: var(--text);
+}
+
+/* 비교 근거 펼치기: 간결한 한 줄 */
+.disclosure {
+  margin-bottom: 28px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.disclosure-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 2px;
+  color: var(--text);
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.16s ease;
+}
+
+.disclosure-row:hover {
+  color: var(--accent);
+}
+
+.chev {
+  color: var(--muted);
+  transition: transform 0.18s ease;
+}
+
+.chev.open {
+  transform: rotate(180deg);
+}
+
+.disclosure-body {
+  padding: 4px 2px 8px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.basis-items {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding-left: 18px;
+}
+
+.basis-title {
+  margin: 16px 0 8px;
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+/* 확인이 필요할 때만 나오는 다음 행동. 대표 버튼은 하나. */
+.next-step {
+  margin-bottom: 28px;
+}
+
+.next-title {
+  margin: 0 0 4px;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.next-step p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.next-step .button {
+  width: 100%;
+}
+
+.analysis .stat-list dd {
+  font-weight: 600;
+}
+
+.analysis .card-note strong,
+.analysis .basis-items strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
