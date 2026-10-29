@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.engine import URL
 
-from app import auth, uploads
+from app import auth, home, uploads
 from app.config import MIN_PASSWORD_LENGTH, build_database_url, get_settings
 from app.db import make_engine, make_session_factory, verify_connection, verify_migrated
 from app.models import AuthState
@@ -64,4 +64,5 @@ def create_app(database_url: str | URL | None = None) -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(uploads.router)
+    app.include_router(home.router)
     return app

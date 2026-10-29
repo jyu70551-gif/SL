@@ -1,21 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, request } from "../api.js";
+import { dateLabel, hourLabel } from "../format.js";
 
-const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
-
-export function hourLabel(hour) {
-  if (hour === 0) return "오전 12시(자정)";
-  if (hour < 12) return `오전 ${hour}시`;
-  if (hour === 12) return "오후 12시(정오)";
-  return `오후 ${hour - 12}시`;
-}
-
-function dateLabel(iso) {
-  const [y, m, d] = iso.split("-").map(Number);
-  const weekday = WEEKDAYS[new Date(y, m - 1, d).getDay()];
-  return `${y}년 ${m}월 ${d}일 (${weekday})`;
-}
 
 async function fileToBase64(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());

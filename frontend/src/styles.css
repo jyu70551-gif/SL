@@ -1,26 +1,19 @@
+/* SL 디자인 틀 (docs/design.md). 어두운 테마로 고정합니다. */
 :root {
-  --bg: #f5f6f8;
-  --surface: #ffffff;
-  --text: #1c2330;
-  --muted: #6b7482;
-  --line: #e1e4ea;
-  --accent: #1f6feb;
-  --accent-text: #ffffff;
-  --error: #c62828;
+  color-scheme: dark;
+  --bg: #0b0e17;
+  --surface: #121626;
+  --surface-2: #181d33;
+  --line: #232a40;
+  --text: #e8ebf5;
+  --muted: #98a2b8;
+  --accent: #7c8cff;
+  --accent-text: #0b0e17;
+  --down: #ff8a8a;
+  --up: #5be0a0;
+  --warn: #f0b35a;
+  --radius: 16px;
   --tab-height: 56px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #12151b;
-    --surface: #1b2029;
-    --text: #e8ebf0;
-    --muted: #9aa3b2;
-    --line: #2b313d;
-    --accent: #4c8dff;
-    --accent-text: #0b1220;
-    --error: #ff7a7a;
-  }
 }
 
 * {
@@ -29,12 +22,24 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: radial-gradient(1200px 500px at 50% -200px, #1a2040 0%, var(--bg) 60%) fixed, var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
-    "Malgun Gothic", sans-serif;
+  /* Pretendard를 먼저 쓰고, 못 불러오면 기기 기본 글꼴을 씁니다. */
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   line-height: 1.5;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  word-break: keep-all; /* 한글을 단어 중간에서 끊지 않습니다 */
+  overflow-wrap: break-word;
 }
+
+a {
+  color: inherit;
+}
+
+/* ---------- 화면 틀 ---------- */
 
 .app-shell {
   min-height: 100dvh;
@@ -49,9 +54,28 @@ body {
   padding: 16px 16px calc(var(--tab-height) + 24px + env(safe-area-inset-bottom));
 }
 
-.page-title {
-  font-size: 1.25rem;
+.page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   margin: 8px 0 16px;
+}
+
+.page-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 8px 0 16px;
+}
+
+.page-head .page-title {
+  margin: 0;
+}
+
+.page-sub {
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .empty-note,
@@ -98,6 +122,339 @@ body {
   font-weight: 700;
 }
 
+/* ---------- 카드 ---------- */
+
+.card {
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--muted);
+}
+
+.card-foot {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.card-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.chip {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chip.warn {
+  color: var(--warn);
+  border-color: rgba(240, 179, 90, 0.4);
+  background: rgba(240, 179, 90, 0.08);
+}
+
+.chip.ok {
+  color: var(--up);
+  border-color: rgba(91, 224, 160, 0.35);
+  background: rgba(91, 224, 160, 0.07);
+}
+
+.chip.accent {
+  color: var(--accent);
+  border-color: rgba(124, 140, 255, 0.4);
+  background: rgba(124, 140, 255, 0.08);
+}
+
+/* ---------- 큰 숫자 ---------- */
+
+.kpi-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.kpi {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.kpi-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.kpi-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  word-break: keep-all;
+}
+
+.kpi-unit {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 2px;
+}
+
+.delta {
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.delta.up {
+  color: var(--up);
+}
+
+.delta.down {
+  color: var(--down);
+}
+
+.delta.flat {
+  color: var(--muted);
+}
+
+/* ---------- 비교 ---------- */
+
+.compare {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.compare-title {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.compare-row {
+  display: grid;
+  gap: 6px;
+}
+
+.compare-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.compare-line .muted {
+  font-size: 0.8rem;
+}
+
+.meter {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+/* 평소 값을 가리키는 눈금 */
+.meter-tick {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--text);
+}
+
+/* 평소 범위 막대: 띠 = 평소 범위, 세로 선 = 오늘 */
+.range-bar {
+  position: relative;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.range-band {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 999px;
+  background: rgba(124, 140, 255, 0.35);
+}
+
+.range-marker {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--text);
+}
+
+.food-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.food-row {
+  display: grid;
+  gap: 8px;
+}
+
+.food-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.food-name {
+  font-size: 0.95rem;
+}
+
+.food-qty {
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 데이터가 더 필요할 때의 안내 */
+.need-more {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.need-more strong {
+  color: var(--text);
+}
+
+.progress-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.progress-dots span {
+  width: 24px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.progress-dots span.on {
+  background: var(--accent);
+}
+
+/* ---------- 버튼·입력 ---------- */
+
+.button {
+  min-height: 48px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent-text);
+  background: var(--accent);
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button.secondary {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+}
+
+.button-row .button {
+  flex: 1;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.error {
+  margin: 0;
+  color: var(--down);
+  font-size: 0.9rem;
+}
+
+.success {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  color: var(--text);
+  background: rgba(91, 224, 160, 0.07);
+  border: 1px solid rgba(91, 224, 160, 0.35);
+}
+
+.problems {
+  margin: 8px 0 16px;
+  padding-left: 20px;
+  color: var(--down);
+  font-size: 0.9rem;
+}
+
+/* 로그인 */
+
 .login {
   min-height: 100dvh;
   display: flex;
@@ -112,6 +469,7 @@ body {
   text-align: center;
   font-size: 2rem;
   margin: 0 0 24px;
+  letter-spacing: 0.1em;
 }
 
 .login-form {
@@ -132,44 +490,10 @@ body {
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 10px;
-}
-
-.button {
-  height: 48px;
-  padding: 0 16px;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--accent-text);
-  background: var(--accent);
-  border: 0;
-  border-radius: 10px;
-  cursor: pointer;
-}
-
-.button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.error {
-  margin: 0;
-  color: var(--error);
-  font-size: 0.9rem;
-}
-
-.muted {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 16px;
 }
+
+/* 파일 올리기 */
 
 .form {
   display: flex;
@@ -191,7 +515,7 @@ body {
   color: var(--text);
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .form .button {
@@ -205,37 +529,6 @@ body {
 
 .confirm .muted {
   margin: 0 0 12px;
-}
-
-.button-row {
-  display: flex;
-  gap: 8px;
-}
-
-.button-row .button {
-  flex: 1;
-}
-
-.button.secondary {
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--line);
-}
-
-.success {
-  margin: 0 0 16px;
-  padding: 12px 16px;
-  border-radius: 10px;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--accent);
-}
-
-.problems {
-  margin: 8px 0 16px;
-  padding-left: 20px;
-  color: var(--error);
-  font-size: 0.9rem;
 }
 
 .section-title {
