@@ -1,8 +1,8 @@
-export function Card({ title, chip, chipTone = "", footer, children }) {
+export function Card({ title, chip, chipTone = "", footer, keyMark = false, children }) {
   return (
     <section className="card">
       <div className="card-head">
-        <h2 className="card-title">{title}</h2>
+        <h2 className={keyMark ? "card-title key" : "card-title"}>{title}</h2>
         {chip && <span className={`chip ${chipTone}`}>{chip}</span>}
       </div>
       {children}

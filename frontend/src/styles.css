@@ -9,9 +9,12 @@
   --muted: #98a2b8;
   --accent: #7c8cff;
   --accent-text: #0b0e17;
+  /* 앰버: 대표 행동 버튼, 활성 메뉴, 핵심 요약의 작은 강조에만 씁니다. */
+  --amber: #f6b94a;
+  --amber-text: #1a1204;
   --down: #ff8a8a;
   --up: #5be0a0;
-  --warn: #f0b35a;
+  --warn: #ff9a7a; /* 앰버와 헷갈리지 않게 붉은 기운이 도는 주황 */
   --radius: 16px;
   --tab-height: 56px;
 }
@@ -117,9 +120,23 @@ a {
   font-size: 0.95rem;
 }
 
+.tab-bar .tab {
+  position: relative;
+}
+
 .tab-bar .tab.active {
-  color: var(--accent);
+  color: var(--amber);
   font-weight: 700;
+}
+
+.tab-bar .tab.active::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  width: 28px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--amber);
 }
 
 /* ---------- 카드 ---------- */
@@ -148,6 +165,18 @@ a {
   color: var(--muted);
 }
 
+/* 핵심 요약 카드 제목 앞의 작은 앰버 점 */
+.card-title.key::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--amber);
+  vertical-align: 0.05em;
+}
+
 .card-foot {
   margin: 12px 0 0;
   padding-top: 10px;
@@ -172,6 +201,15 @@ a {
   font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* 경고·정상은 색만이 아니라 아이콘과 문구를 함께 씁니다. */
+.chip.warn::before {
+  content: "\26A0\FE0E ";
+}
+
+.chip.ok::before {
+  content: "\2713 ";
 }
 
 .chip.warn {
@@ -398,8 +436,8 @@ a {
   justify-content: center;
   font-size: 1rem;
   font-weight: 700;
-  color: var(--accent-text);
-  background: var(--accent);
+  color: var(--amber-text);
+  background: var(--amber);
   border: 0;
   border-radius: 12px;
   cursor: pointer;
@@ -431,10 +469,20 @@ a {
   font-size: 0.9rem;
 }
 
+.error::before {
+  content: "\26A0\FE0E ";
+}
+
 .error {
   margin: 0;
   color: var(--down);
   font-size: 0.9rem;
+}
+
+.success::before {
+  content: "\2713 ";
+  color: var(--up);
+  font-weight: 700;
 }
 
 .success {

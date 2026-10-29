@@ -38,6 +38,7 @@ function TotalCard({ data }) {
       title="오늘 총매출·판매수량"
       chip={`${hourLabel(hour)}까지`}
       chipTone="accent"
+      keyMark
       footer={`${dateLabel(data.date)} · ${hourLabel(hour)}까지의 매출`}
     >
       <div className="kpi-row">
