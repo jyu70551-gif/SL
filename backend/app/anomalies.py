@@ -24,7 +24,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app import auth, detection
+from app import auth, day_context, detection
 from app.auth import get_db, require_auth
 from app.models import DailySale, ReviewedAnomaly, SalesUpload
 from app.settings import get_sensitivity
@@ -259,6 +259,7 @@ def build_anomaly_list(db: Session) -> dict:
         return result
     result["status"] = "ready"
 
+    calendar = day_context.build(db)
     for category in data["categories"]:
         flagged = []
         for upload in in_window:
@@ -279,6 +280,8 @@ def build_anomaly_list(db: Session) -> dict:
                     "kind": anomaly.get("kind", "daily"),
                     "kind_text": kind_text(anomaly.get("kind", "daily"), anomaly["direction"]),
                     "basis": KIND_BASIS[anomaly["kind"]] if anomaly.get("new_method") else f"같은 요일 {entry['weeks_used']}번의 중간값",
+                    "calendar": calendar(upload.sales_date),
+                    "calendar_text": day_context.note_text(calendar(upload.sales_date)),
                 }
             )
         if flagged:

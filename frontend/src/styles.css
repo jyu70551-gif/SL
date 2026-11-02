@@ -1568,3 +1568,7 @@ a {
   color: var(--muted, inherit);
   margin: 4px 0 8px;
 }
+
+.calendar-note {
+  color: var(--muted, inherit);
+}

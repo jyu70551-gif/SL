@@ -29,6 +29,7 @@ function Row({ entry }) {
         <div className="row-amount">{won(entry.amount)}</div>
         <DiffLine diff={entry.amount - entry.baseline} pct={entry.change_pct} basis="비교 기준" />
         {entry.kind_text && <p className="diff-line">{entry.kind_text}</p>}
+        {entry.calendar_text && <p className="diff-line calendar-note">{entry.calendar_text}</p>}
       </Link>
     </li>
   );

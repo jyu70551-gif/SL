@@ -2,7 +2,6 @@
 from datetime import date
 
 WEEKDAYS = "월화수목금토일"
-MARKET_DAY_REMAINDER = 3  # 장날: 3, 8, 13, 18, 23, 28일 (5일장)
 
 
 def won(n: float) -> str:
@@ -35,10 +34,6 @@ def hour_label(hour: int) -> str:
     if hour == 12:
         return "오후 12시(정오)"
     return f"오후 {hour - 12}시"
-
-
-def is_market_day(d: date) -> bool:
-    return d.day % 5 == MARKET_DAY_REMAINDER
 
 
 def _has_batchim(word: str) -> bool:

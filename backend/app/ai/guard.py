@@ -21,8 +21,8 @@ JUDGE_RE = re.compile(r"정상|문제\s*없|이상\s*없|걱정\s*(마|없)|괜�
 MARKUP_RE = re.compile(r"https?://|www\.|\]\(|`|<[^>]+>|\*\*|^\s*[#>]", re.MULTILINE)
 # G8': 키처럼 생긴 문자열(AI는 키를 알지 못하지만 한 겹 더 막아 둡니다)
 SECRET_RE = re.compile(r"sk-[A-Za-z0-9_\-]{6,}|api[_\- ]?key|openai", re.IGNORECASE)
-# G9: 장날 같은 참고 맥락을 원인처럼 말하는 표현
-CONTEXT_CAUSAL_RE = re.compile(r"장날(이라|이어서|이라서|이기|때문|덕|로 인)")
+# G9: 장날·공휴일·방학 같은 참고 맥락을 원인처럼 말하는 표현
+CONTEXT_CAUSAL_RE = re.compile(r"(장날|공휴일|방학|연휴)(이라|이어서|이라서|이기|때문|덕|로 인)")
 TOTAL_NAME = "총매출"
 GENERIC_CATEGORY_NAMES = {"기타"}  # 일반 낱말과 겹치는 분류 이름은 G7에서 제외
 

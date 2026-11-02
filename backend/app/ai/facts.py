@@ -11,6 +11,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import day_context
 from app.ai import textfmt as t
 from app.anomalies import REASONS, STORE, _analyze, build_anomaly_list
 from app.home import build_home_summary
@@ -29,11 +30,9 @@ def reason_labels(reasons_csv: str, hide_generic: bool = False) -> list[str]:
     return [REASONS[k] for k in keys]
 
 
-def _context(d: date) -> list[str]:
-    context = [f"{t.WEEKDAYS[d.weekday()]}요일"]
-    if t.is_market_day(d):
-        context.append("장날")  # 참고 맥락일 뿐 원인이 아닙니다
-    return context
+def _context(d: date, calendar) -> list[str]:
+    """요일과, 점주가 저장한 장날·공휴일·방학. 참고 맥락일 뿐 원인이 아닙니다."""
+    return [f"{t.WEEKDAYS[d.weekday()]}요일", *calendar(d)]
 
 
 def past_records(rows, analysis, category: str, before: date, direction: str) -> list[dict]:
@@ -72,6 +71,7 @@ def build_facts(db: Session) -> dict | None:
     listing = build_anomaly_list(db)
     home = build_home_summary(db)
     analysis = _analyze(db)
+    calendar = day_context.build(db)
     rows = list(db.scalars(select(ReviewedAnomaly)))
     store_recorded = any(r.category == STORE and r.sales_date == today for r in rows)
 
@@ -115,7 +115,7 @@ def build_facts(db: Session) -> dict | None:
                     "pct": facts["total"]["pct"],
                     "direction": direction,
                     "basis": facts["total"]["basis"],
-                    "context": _context(today),
+                    "context": _context(today, calendar),
                     "past_records": [],
                     "_num": {"amount": total_amount, "baseline": center, "score": None, "days_ago": 0},
                 }
@@ -140,7 +140,7 @@ def build_facts(db: Session) -> dict | None:
                     "pct": t.pct_text(flagged.get("change_pct")),
                     "direction": flagged["direction"],
                     "basis": flagged.get("basis") or f"같은 요일 {flagged['weeks_used']}번의 중간값",
-                    "context": _context(d),
+                    "context": _context(d, calendar),
                     "past_records": past_records(rows, analysis, item["category"], d, flagged["direction"]),
                     "_num": {"amount": amount, "baseline": baseline, "score": flagged.get("score"), "days_ago": (today - d).days},
                 }
@@ -165,7 +165,7 @@ def build_facts(db: Session) -> dict | None:
                     "pct": "",
                     "direction": food["verdict"],
                     "basis": f"같은 요일 최근 {food['weeks_used']}번의 과거 관측 범위",
-                    "context": _context(today),
+                    "context": _context(today, calendar),
                     "past_records": [],
                     "_num": {"amount": food["today_quantity"], "baseline": food["baseline_quantity"], "score": None, "days_ago": 0},
                 }
