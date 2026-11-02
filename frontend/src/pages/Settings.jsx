@@ -3,6 +3,7 @@ import { request } from "../api.js";
 import { Card } from "../components/Card.jsx";
 import HolidayCard from "../components/HolidayCard.jsx";
 import MarketCard from "../components/MarketCard.jsx";
+import WeatherCard from "../components/WeatherCard.jsx";
 import PasswordCard from "../components/PasswordCard.jsx";
 import SchoolVacationCard from "../components/SchoolVacationCard.jsx";
 
@@ -186,6 +187,7 @@ export default function Settings() {
       <SchoolVacationCard />
       <MarketCard />
       <HolidayCard />
+      <WeatherCard />
       <Sensitivity />
       <AiStatus />
       <PasswordCard />

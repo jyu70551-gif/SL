@@ -41,7 +41,7 @@ powershell -ExecutionPolicy Bypass -File backend\tools\start_demo.ps1 -Stop     
 | `backend/tools/serve_lab.py` | 랩 DB로 서버를 켭니다 (화면 맨 위에 "시연용 데이터" 표시, 비밀번호 아무거나) |
 | `backend/tools/start_demo.ps1` | **시연 한 번에 켜기·끄기** (0번 참고) |
 | `backend/tools/export_lab_csv.py` | 랩 DB를 엑셀로 볼 수 있는 CSV로 내보내기 |
-| `backend/tools/eval_changepoint.py`, `eval_rare.py`, `eval_final.py`, `eval_sensitivity.py` | 새 탐지 방식 실험·평가 ([stats-guide.md](stats-guide.md) 4장) |
+| `backend/tools/eval_changepoint.py`, `eval_rare.py`, `eval_final.py`, `eval_sensitivity.py` | 새 탐지 방식 실험·평가 도구 (방식의 설명은 [stats-guide.md](stats-guide.md) 1장이고, 평가 숫자는 그 문서에 싣지 않음) |
 | `backend/lab/` | 만들어진 DB들 (git에 올라가지 않음) |
 
 ## 2. 사용법 (backend 폴더에서)
@@ -126,3 +126,11 @@ $env:VITE_PROXY_TARGET="http://127.0.0.1:8100"; npm.cmd run dev -- --port 5180
 
 - **목적 C(Phase 7 예측 모델 연습)용 데이터**는 아직 만들지 않았습니다. 효과 크기를 알고 넣은 가짜 데이터로 "예측 모델 코드가 효과를 되찾는지"를 확인하는 용도이며, Phase 7을 시작할 때 만듭니다.
 - 실제 데이터가 늘면(POS 이력, 매일 올리는 파일) 이 도구의 추정도 같이 좋아집니다. `make_lab_data.py`를 다시 돌리기만 하면 됩니다.
+
+## 날씨 효과 (내일 예상 매출용)
+
+- 시연 DB(`--demo`)와 `--weather` 옵션은 시연 날짜에 맞는 **실제 관측 날씨**(기상청 ASOS 인천)를 받아 `lab/weather_incheon.json`에 저장해 두고 다시 씁니다. 처음 한 번은 `WEATHER_PAST_API_KEY`가 필요하고 인터넷이 필요합니다.
+- 가짜 매출에는 **가정한 날씨 효과**를 곱합니다: 기온 1도당 +0.6%(기준 12도), 비 온 날(1mm 이상) ×0.92. **실제 23일에서 확인하지 못한 값이라 상식에 따른 가정입니다.** 값은 `ASSUMED`에 있고 정답 기록(`*.truth.json`)에도 남습니다.
+- 날씨 표(`weather_daily`)와 3·8일 장날도 시연 DB에 채워 둡니다. 앱의 내일 예상 매출이 이 자료로 학습합니다.
+- 이 자료에서 모형이 날씨 효과를 찾아내는 것은 **심은 값을 되찾는 것**일 뿐 실제 세계의 증거가 아닙니다. ([stats-guide.md](stats-guide.md) 4장)
+

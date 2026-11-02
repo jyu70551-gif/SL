@@ -1,4 +1,4 @@
-"""이어지는 변화와 0원이 많은 분류까지 보는 탐지 (docs/stats-guide.md 4장, docs/calculation.md).
+"""이어지는 변화와 0원이 많은 분류까지 보는 탐지 (docs/stats-guide.md 1장, docs/calculation.md).
 
 분류를 팔린 날 비율로 세 종류로 나누고, 종류마다 다른 방법을 씁니다.
   거의 매일 팔림 (90% 이상) : 요일 효과를 뺀 뒤 Shewhart(하루 점수) + CUSUM(누적)

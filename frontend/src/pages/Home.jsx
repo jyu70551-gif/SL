@@ -5,6 +5,7 @@ import AiCheckCard from "../components/AiCheckCard.jsx";
 import AnomalyCard from "../components/AnomalyCard.jsx";
 import { BasisToggle, Card, NeedMore } from "../components/Card.jsx";
 import { DiffLine } from "../components/Change.jsx";
+import ForecastCard from "../components/ForecastCard.jsx";
 import { ArrowLink } from "../components/Icons.jsx";
 import { count, dateLabel, hourLabel, monthDay, shortDate, won } from "../format.js";
 
@@ -199,6 +200,7 @@ export default function Home() {
           <AiCheckCard onChanged={() => setVersion((v) => v + 1)} />
           <AnomalyCard key={version} weekday={data.weekday} />
           <FocusFood data={data} />
+          <ForecastCard />
         </>
       )}
     </section>

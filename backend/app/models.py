@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Integer, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, Integer, String, Text, UniqueConstraint
 from sqlalchemy.sql import expression
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -134,6 +134,17 @@ class MarketDay(Base):
     __tablename__ = "market_days"
 
     day: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+
+
+class WeatherDaily(Base):
+    """날짜별 실제 관측 날씨 (기상청 ASOS 일자료). 내일 예상 매출 모형이 학습에 씁니다. station 은 관측소 이름(점포에서 가장 가까운 곳)."""
+
+    __tablename__ = "weather_daily"
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    station: Mapped[str] = mapped_column(String(20), default="", server_default="")
+    avg_temp: Mapped[float] = mapped_column(Float)  # 평균 기온 (℃)
+    rain_mm: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")  # 일 강수량 (mm)
 
 
 class AiFeedback(Base):

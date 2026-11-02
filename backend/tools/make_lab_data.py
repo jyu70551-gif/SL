@@ -26,8 +26,9 @@ sys.path.insert(0, str(BACKEND))
 
 from sqlalchemy import select  # noqa: E402
 
+from app import config  # noqa: E402
 from app.db import Base, make_engine, make_session_factory  # noqa: E402
-from app.models import DailySale, ReviewedAnomaly, SalesUpload  # noqa: E402
+from app.models import DailySale, MarketDay, ReviewedAnomaly, SalesUpload, WeatherDaily  # noqa: E402
 from app.sales_file import parse_sales_csv  # noqa: E402
 
 DEFAULT_SOURCE = BACKEND.parent / ".sl-history" / "데이터_가져오기" / "csv"
@@ -43,6 +44,10 @@ ASSUMED = {
     "holiday_multiplier_long": 0.45,  # 설·추석 연휴
     "presence_multiplier_long_holiday": 0.7,  # 연휴에는 팔리는 분류 수도 줄어듦
     "shrink_real_weekday_effect": 0.5,
+    # 날씨 효과 (--weather 일 때만). 실제 23일에서는 확인하지 못한 값이라 상식에 따른 가정입니다. (docs/stats-guide.md 4장)
+    "temperature_effect_per_degree": 0.006,  # 기온 1도당 +0.6% (기준 12도. 더우면 음료·아이스크림이 늘고 추우면 사람이 덜 나옴)
+    "temperature_reference": 12.0,
+    "rain_day_multiplier": 0.92,  # 비 온 날(일 강수량 1mm 이상)
 }
 
 # 대략의 휴일 달력 (시연용. 정확한 공휴일표가 아닙니다)
@@ -169,6 +174,12 @@ def day_multiplier(d: date, params: dict) -> float:
     kind = None if params.get("no_holidays") else holiday_of(d)
     if kind:
         mult *= ASSUMED["holiday_multiplier_long"] if kind[0] == "long" else ASSUMED["holiday_multiplier_single"]
+    observed = (params.get("weather") or {}).get(d)
+    if observed:
+        temp, rain = observed
+        mult *= math.exp(ASSUMED["temperature_effect_per_degree"] * (temp - ASSUMED["temperature_reference"]))
+        if rain >= 1.0:
+            mult *= ASSUMED["rain_day_multiplier"]
     return mult
 
 
@@ -283,13 +294,14 @@ def demo_scenarios(params: dict, latest: date) -> tuple[list[dict], list[str]]:
 
 
 # ---------------------------------------------------------------- 만들기
-def build(source: Path, out: Path, start: date, seed: int, demo: bool = False) -> dict:
+def build(source: Path, out: Path, start: date, seed: int, demo: bool = False, weather: dict | None = None) -> dict:
     """demo=True 면 실제 날짜도 가짜로 채웁니다(실제 값은 하나도 들어가지 않음). 휴일 효과는 끄고, 마지막 3주에
     알림 종류가 모두 보이도록 정해 둔 상황(demo_scenarios)을 넣습니다. 분포는 실제 기록에서 추정한 것을 그대로 씁니다."""
     real = load_real_days(source)
     params = estimate(real)
     if demo:
         params["no_holidays"] = True  # 앱에는 아직 휴일표가 없으므로 시연에서는 휴일 효과를 넣지 않습니다
+    params["weather"] = weather  # {날짜: (평균 기온, 일 강수량)} 실제 관측값. 있으면 가짜 매출에 가정한 날씨 효과를 곱합니다.
     latest = max(real)
     all_dates = [start + timedelta(days=i) for i in range((latest - start).days + 1)]
     s_day, simulated_sd = calibrate_day_effect(params, seed, all_dates)
@@ -325,6 +337,10 @@ def build(source: Path, out: Path, start: date, seed: int, demo: bool = False) -
             db.add(SalesUpload(sales_date=d, cutoff_hour=CUTOFF_HOUR, filename=filename, row_count=len(data), uploaded_at=stamp))
             db.add_all(DailySale(sales_date=d, product_code=c, category=n, quantity=q, amount=a) for c, n, q, a in data)
 
+        if weather:  # 앱이 학습에 쓰는 날씨 표 (실제 관측값. 매출만 가짜)
+            db.add_all(WeatherDaily(day=d, station=WEATHER_STATION[1], avg_temp=t, rain_mm=r) for d, (t, r) in sorted(weather.items()))
+            db.add_all(MarketDay(day=d) for d in range(1, 32) if d % 5 == 3)  # 가짜 매출의 장날 효과와 같은 날짜를 앱에도 저장해 둡니다
+
         # 점주가 남긴 것처럼 보이는 기록 (일주일보다 오래된 이상 중 일부). 가짜입니다.
         notes = []
         for e in events:
@@ -356,11 +372,40 @@ def build(source: Path, out: Path, start: date, seed: int, demo: bool = False) -
         "시연 상황(마지막 3주, 시연 DB 전용)": scenarios,
         "시연 상황 중 건너뛴 것": skipped,
         "시연 DB": demo,
+        "날씨 효과 포함": bool(weather),
+        "날씨": {"관측소": WEATHER_STATION[1], "날 수": len(weather or {}), "비고": "날씨는 실제 관측값, 매출 효과(기온·비)는 가정값입니다"} if weather else None,
         "점주 기록(가짜)": notes,
         "주의": "이 데이터로 어떤 경향도 발견할 수 없습니다. 시연과 연습용입니다.",
     }
     truth_path(out).write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     return meta
+
+
+WEATHER_STATION = (112, "인천")  # 시흥 인근에서 가장 가까운 ASOS 관측소
+WEATHER_CACHE = BACKEND / "lab" / "weather_incheon.json"
+
+
+def load_weather(source: Path, start: date) -> dict[date, tuple[float, float]]:
+    """실제 관측 날씨. 한 번 받으면 lab/weather_incheon.json 에 저장해 두고 다시 쓰고, 없는 날만 받습니다."""
+    from app import official, weather as weather_api  # 도구에서만 불러옵니다
+
+    latest = max(parse_sales_csv(f.read_bytes()).sales_date for f in source.glob("sales_*.csv"))
+    end = min(latest + timedelta(days=7), date.today() - timedelta(days=1))
+    cached: dict[str, list[float]] = json.loads(WEATHER_CACHE.read_text(encoding="utf-8")) if WEATHER_CACHE.exists() else {}
+    want = [start + timedelta(days=i) for i in range((end - start).days + 1)]
+    missing = [d for d in want if d.isoformat() not in cached]
+    if missing:
+        key = config.read_env_key("WEATHER_PAST_API_KEY", config.AI_ENV_FILE)
+        if not key:
+            raise SystemExit("날씨를 받으려면 backend/.env 에 WEATHER_PAST_API_KEY 가 있어야 해요. (--weather 없이 만들면 날씨 효과는 빠집니다)")
+        try:
+            rows = weather_api.fetch_observed(official.fetch_json, key, WEATHER_STATION[0], missing[0], missing[-1])
+        except official.OfficialError as error:
+            raise SystemExit(f"날씨를 받지 못했어요({error.code}). 잠시 뒤 다시 시도해 주세요.")
+        for r in rows:
+            cached[r["day"].isoformat()] = [r["temp"], r["rain"]]
+        WEATHER_CACHE.write_text(json.dumps(cached, ensure_ascii=False), encoding="utf-8")
+    return {d: tuple(cached[d.isoformat()]) for d in want if d.isoformat() in cached}
 
 
 def truth_path(db_path: Path) -> Path:
@@ -374,12 +419,14 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=None, help="만들 SQLite 파일 (실제 DB가 아닙니다). 기본: lab/lab.db, --demo 면 lab/demo.db")
     parser.add_argument("--start", type=date.fromisoformat, default=date(2025, 5, 1), help="가짜로 채울 시작 날짜")
     parser.add_argument("--seed", type=int, default=20261029, help="같은 숫자면 같은 데이터가 만들어집니다")
+    parser.add_argument("--weather", action="store_true", help="실제 관측 날씨(기상청 ASOS)를 받아 가짜 매출에 가정한 날씨 효과를 심고 날씨 표도 채웁니다. --demo 는 자동으로 켭니다 (WEATHER_PAST_API_KEY 필요)")
     parser.add_argument("--demo", action="store_true", help="시연 DB: 실제 날짜도 가짜로 채우고(실제 값 없음), 마지막 3주에 알림 종류가 모두 보이는 상황을 넣습니다")
     args = parser.parse_args()
     out = args.out or (DEFAULT_OUT.with_name("demo.db") if args.demo else DEFAULT_OUT)
     if out.suffix != ".db":
         raise SystemExit("--out 은 .db 파일이어야 해요. (실제 DB에는 쓰지 않습니다)")
-    meta = build(args.source, out, args.start, args.seed, demo=args.demo)
+    weather = load_weather(args.source, args.start) if (args.weather or args.demo) else None
+    meta = build(args.source, out, args.start, args.seed, demo=args.demo, weather=weather)
     args.out = out
     days = meta["날짜 수"]
     print(f"랩 DB를 만들었어요: {args.out}" + (" (시연 DB: 실제 값 없음)" if args.demo else ""))

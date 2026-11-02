@@ -139,7 +139,7 @@ def test_one_command_creates_all_tables_and_matches_the_models(tmp_path):
     with engine.connect() as conn:
         # 변경 기록과 모델(models.py)이 어긋나지 않는다.
         assert compare_metadata(MigrationContext.configure(conn), Base.metadata) == []
-        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0009"
+        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0010"
 
 
 def test_running_it_again_does_not_apply_changes_twice(tmp_path):
