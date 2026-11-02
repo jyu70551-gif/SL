@@ -54,14 +54,23 @@ def fetch_json(url: str, params: dict) -> dict:
 
 
 def atpt_code_of(education_office_name: str) -> str | None:
-    """교육청 이름에서 NEIS 시·도교육청 코드. 알 수 없으면 None(그러면 교육청을 지정하지 않고 학교를 찾습니다).
-    "전남광주통합특별시교육청"처럼 두 지역이 합쳐진 이름은 광주(F10)와 전남(Q10)을 구분할 수 없어서 None 입니다."""
+    """교육청 이름에서 NEIS 시·도교육청 코드. 알 수 없으면 None.
+    "전남광주통합특별시교육청"처럼 두 지역이 합쳐진 이름은 광주(F10)와 전남(Q10)을 구분할 수 없어서 None 입니다.
+    (이름에 "광주"가 들어 있다고 F10으로 읽으면 전남 학교 전체를 못 찾습니다)"""
     if "통합" in education_office_name:
         return None
     for word, code in ATPT_CODES:
         if word in education_office_name:
             return code
     return None
+
+
+def atpt_codes_of(education_office_name: str) -> list[str]:
+    """학교를 찾아볼 NEIS 교육청 코드 후보. 합쳐진 교육청은 전남(Q10)과 광주(F10) 둘 다, 모르면 빈 목록."""
+    if "통합" in education_office_name:
+        return ["Q10", "F10"]
+    code = atpt_code_of(education_office_name)
+    return [code] if code else []
 
 
 def distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -223,14 +232,28 @@ def _neis_rows(data: dict, service: str) -> list[dict]:
     return parts[1].get("row", []) if len(parts) > 1 else []
 
 
-def neis_school_code(get, key: str, atpt: str | None, name: str, address: str) -> tuple[str, str] | None:
+_PAREN = re.compile(r"\([^)]*\)")
+_ROAD = re.compile(r"([가-힣0-9]+(?:로|길)(?:\d+번?길)?)\s*(\d+(?:-\d+)?)(?:번지)?\s*$")
+
+
+def road_key(address: str) -> tuple[str, str] | None:
+    """도로명주소 끝의 (도로 이름, 건물 번호). 시·구·도 이름이 자료마다 달라도(화성시 만세구 ↔ 화성시, 강원특별자치도 ↔ 강원도,
+    "84" ↔ "84번지") 같은 건물을 알아보기 위한 것입니다. 번호가 없으면 None."""
+    m = _ROAD.search(_PAREN.sub("", str(address)).strip())
+    return (m.group(1), m.group(2)) if m else None
+
+
+def neis_school_code(get, key: str, atpt, name: str, address: str) -> tuple[str, str] | None:
     """학교 위치 자료의 학교를 NEIS의 (교육청 코드, 학교 코드)로 연결합니다. 못 찾으면 None.
-    1) 교육청 코드를 알면 그 안에서 찾습니다. 같은 이름이 여럿이면 도로명주소가 같은 학교만 인정하고, 하나뿐이면 그것을 씁니다.
-    2) 교육청 코드를 모르거나 1)에서 못 찾으면 교육청을 지정하지 않고 전국에서 찾습니다. 이때는 이름이 같은 다른 지역 학교와
-       섞이지 않게 **도로명주소가 같은 학교만** 인정합니다. (교육청 이름이 합쳐졌거나 바뀐 경우에도 찾기 위해서입니다)"""
+    atpt 는 교육청 코드 후보(글자 하나, 목록, 또는 모르면 None).
+    1) 후보 교육청 안에서 찾습니다. 도로명주소가 같으면 그 학교, 아니면 도로명+건물 번호가 같은 학교, 아니면 같은 이름이 하나뿐일 때 그것.
+    2) 못 찾으면 교육청을 지정하지 않고 전국에서 찾습니다. 이때는 이름만 같은 다른 지역 학교와 섞이지 않게
+       **도로명주소(또는 도로명+건물 번호)가 같은 학교만** 인정합니다. (교육청 이름이 합쳐졌거나 바뀐 경우에도 찾기 위해서입니다)"""
     if not key:
         raise OfficialError("no_key")
+    codes = [atpt] if isinstance(atpt, str) else list(atpt or [])
     norm = lambda s: "".join(str(s).split())
+    wanted_road = road_key(address)
 
     def search(code: str | None) -> list[dict]:
         params = {"KEY": key, "Type": "json", "pIndex": 1, "pSize": 100, "SCHUL_NM": name}
@@ -240,14 +263,17 @@ def neis_school_code(get, key: str, atpt: str | None, name: str, address: str) -
 
     def pick(rows: list[dict], allow_single: bool) -> tuple[str, str] | None:
         same = [r for r in rows if norm(r.get("ORG_RDNMA", "")) == norm(address)]
+        if not same and wanted_road:
+            same = [r for r in rows if road_key(r.get("ORG_RDNMA", "")) == wanted_road]
+            same = same if len(same) == 1 else []  # 같은 건물이 둘이면 구분할 수 없으니 고르지 않습니다
         if same:
             return same[0]["ATPT_OFCDC_SC_CODE"], same[0]["SD_SCHUL_CODE"]
         if allow_single and len(rows) == 1:
             return rows[0]["ATPT_OFCDC_SC_CODE"], rows[0]["SD_SCHUL_CODE"]
         return None
 
-    if atpt:
-        found = pick(search(atpt), allow_single=True)
+    for code in codes:
+        found = pick(search(code), allow_single=True)
         if found:
             return found
     return pick(search(None), allow_single=False)

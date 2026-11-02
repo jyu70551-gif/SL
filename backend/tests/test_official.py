@@ -81,6 +81,8 @@ def test_education_office_name_gives_the_neis_region_code():
     assert official.atpt_code_of("알수없는교육청") is None
     # 지역이 합쳐진 이름은 광주(F10)와 전남(Q10)을 구분할 수 없어서 코드를 정하지 않습니다 (이전에는 "광주"만 보고 F10으로 잘못 읽었음)
     assert official.atpt_code_of("전남광주통합특별시교육청") is None
+    assert official.atpt_codes_of("전남광주통합특별시교육청") == ["Q10", "F10"]  # 둘 다 찾아봄 (전남 먼저)
+    assert official.atpt_codes_of("경기도교육청") == ["J10"] and official.atpt_codes_of("알수없는교육청") == []
     assert official.atpt_code_of("광주광역시교육청") == "F10" and official.atpt_code_of("전라남도교육청") == "Q10"
 
 
@@ -124,6 +126,44 @@ def test_neis_code_is_found_without_the_education_office_when_the_office_is_unkn
     # 교육청을 지정하지 않을 때는 이름만 같은 다른 지역 학교를 받아들이지 않습니다
     one_other = {"schoolInfo": [{"head": []}, {"row": [{"SD_SCHUL_CODE": "1", "ATPT_OFCDC_SC_CODE": "B10", "ORG_RDNMA": "서울특별시 어딘가 1"}]}]}
     assert official.neis_school_code(lambda u, p: one_other, "k", None, "순천효산고등학교", address) is None
+
+
+def test_road_key_ignores_district_names_parentheses_and_lot_suffix():
+    same = ["경기도 수원시 영통구 중부대로448번길 84", "경기도 수원시 영통구 중부대로448번길 84번지", "수원시 중부대로448번길 84 (영통동)"]
+    assert {official.road_key(a) for a in same} == {("중부대로448번길", "84")}
+    assert official.road_key("강원특별자치도 속초시 수복로 117") == official.road_key("강원도 속초시 수복로 117") == ("수복로", "117")
+    assert official.road_key("전남광주통합특별시 해남군 현산면 현산북평로") is None  # 건물 번호가 없으면 비교하지 않음
+
+
+def test_neis_code_survives_address_notation_differences_but_not_different_buildings():
+    """공공데이터와 NEIS가 구 이름(만세구·원미구)이나 번지 표기를 다르게 적어도 같은 건물이면 연결합니다. (전국 점검에서 나온 실제 모양)"""
+    def rows_for(*rows):
+        return lambda u, p: neis_info([{"SD_SCHUL_CODE": c, "ORG_RDNMA": a, "ATPT_OFCDC_SC_CODE": "J10"} for c, a in rows])
+
+    other = ("999", "경기도 부천시 계남로 29")
+    assert official.neis_school_code(rows_for(("111", "경기도 화성시 우정읍 석천길 52"), other), "k", ["J10"], "석천초등학교", "경기도 화성시 만세구 우정읍 석천길 52") == ("J10", "111")
+    assert official.neis_school_code(rows_for(("111", "경기도 부천시 부흥로 93"), other), "k", ["J10"], "상원초등학교", "경기도 부천시 원미구 부흥로 93") == ("J10", "111")
+    assert official.neis_school_code(rows_for(("111", "경기도 수원시 영통구 중부대로448번길 84번지"), other), "k", ["J10"], "원일초등학교", "경기도 수원시 영통구 중부대로448번길 84") == ("J10", "111")
+    # 같은 이름이 여럿이고 건물 번호가 다르면 고르지 않음 (잘못 연결하는 것보다 못 찾는 편이 안전)
+    assert official.neis_school_code(rows_for(("111", "경기도 안산시 원선로 113"), other), "k", ["J10"], "원일초등학교", "경기도 수원시 영통구 중부대로448번길 84") is None
+    # 같은 건물이 둘이면 구분할 수 없으니 고르지 않음 (교육청을 알 때도, 모를 때도)
+    twin = rows_for(("111", "경기도 화성시 우정읍 석천길 52"), ("222", "경기도 화성시 우정읍 석천길 52번지"))
+    assert official.neis_school_code(twin, "k", ["J10"], "석천초등학교", "경기도 화성시 만세구 우정읍 석천길 52") is None
+    assert official.neis_school_code(twin, "k", None, "석천초등학교", "경기도 화성시 만세구 우정읍 석천길 52") is None
+
+
+def test_merged_education_office_tries_jeonnam_then_gwangju():
+    asked = []
+
+    def get(url, params):
+        asked.append(params.get("ATPT_OFCDC_SC_CODE"))
+        if params.get("ATPT_OFCDC_SC_CODE") == "F10":
+            return neis_info([{"SD_SCHUL_CODE": "555", "ATPT_OFCDC_SC_CODE": "F10", "ORG_RDNMA": "전남광주통합특별시 광산구 가상로 1"}])
+        return {"RESULT": {"CODE": "INFO-200", "MESSAGE": "해당하는 데이터가 없습니다."}}
+
+    codes = official.atpt_codes_of("전남광주통합특별시교육청")
+    assert official.neis_school_code(get, "k", codes, "가상학교", "전남광주통합특별시 광산구 가상로 99") == ("F10", "555")  # 광주 쪽 학교(이름이 하나뿐)
+    assert asked == ["Q10", "F10"]
 
 
 def test_neis_error_codes_raise_instead_of_pretending_there_is_no_data():

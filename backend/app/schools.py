@@ -87,9 +87,9 @@ def preview_vacations(body: PreviewBody, request: Request, db: Session = Depends
     for school_id in ids:
         place = by_id[school_id]
         entry = {"school_id": school_id, "name": place["name"], "kind": place["kind"], "status": "ok", "periods": []}
-        atpt = official.atpt_code_of(place["edu_office"])
+        atpts = official.atpt_codes_of(place["edu_office"])
         try:
-            found = official.neis_school_code(get, neis_key, atpt, place["name"], place["address"])
+            found = official.neis_school_code(get, neis_key, atpts, place["name"], place["address"])
             if found is None:
                 entry["status"] = "no_code"  # NEIS에서 이 학교를 찾지 못함 → 점주가 직접 입력
             else:
