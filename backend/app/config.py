@@ -161,6 +161,27 @@ def read_openai_key(env_file: Path | None) -> str:
     return (os.environ.get("OPENAI_API_KEY") or "").strip()
 
 
+_env_cache: dict[tuple[str, str], tuple[float | None, str]] = {}
+
+
+def read_env_key(name: str, env_file: Path | None) -> str:
+    """공식 일정 가져오기용 인증키(DATA_GO_KR_API_KEY, NEIS_API_KEY)를 읽습니다. read_openai_key 와 같은 방식이라
+    .env 를 고치면 서버를 다시 켜지 않아도 반영됩니다. 키 값은 로그나 화면에 내보내지 않습니다."""
+    if env_file is not None:
+        try:
+            mtime = env_file.stat().st_mtime
+        except OSError:
+            mtime = None
+        if mtime is not None:
+            cached = _env_cache.get((str(env_file), name))
+            if cached is None or cached[0] != mtime:
+                cached = (mtime, (dotenv_values(env_file).get(name) or "").strip())
+                _env_cache[(str(env_file), name)] = cached
+            if cached[1]:
+                return cached[1]
+    return (os.environ.get(name) or "").strip()
+
+
 def read_ai_settings(env_file: Path | None) -> AiSettings:
     """.env 파일의 AI_* 값을 우선하고, 없으면 환경 변수를 씁니다. (키와 마찬가지로 재시작 없이 반영)"""
     merged = dict(os.environ)

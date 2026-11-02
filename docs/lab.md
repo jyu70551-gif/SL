@@ -5,13 +5,43 @@
 
 ---
 
+## 0. 시연하려면 (명령 하나)
+
+실제 데이터는 더 늘지 않으므로, **시연은 실제 값이 하나도 없는 가짜 데이터(시연 DB)로** 합니다. 실제 DB(Supabase)에는 연결하지 않습니다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File backend\tools\start_demo.ps1           # 켜기. 시연 DB가 없으면 먼저 만들고 브라우저를 엽니다
+powershell -ExecutionPolicy Bypass -File backend\tools\start_demo.ps1 -Reset    # 시연 DB를 처음 상태로 다시 만들고 켜기 (시연 중에 남긴 기록 지우기)
+powershell -ExecutionPolicy Bypass -File backend\tools\start_demo.ps1 -Stop     # 끄기
+```
+
+- 주소는 **http://localhost:5180**, 로그인 비밀번호는 **아무거나** 입력해도 됩니다. 화면 맨 위에 "시연용 데이터" 표시가 붙습니다.
+- 시연 DB(`backend/lab/demo.db`)는 실제 기록에서 **분포만** 추정해 모든 날(301일)을 가짜로 만든 것입니다. 실제 날짜의 값은 들어 있지 않습니다. (추정에 쓰는 실제 CSV는 `.sl-history\데이터_가져오기\csv`에 있어야 만들 수 있고, 한 번 만든 DB는 그 폴더 없이도 씁니다)
+- 휴일 효과는 끕니다. (앱에 아직 휴일표가 없어서, 연휴가 가짜 알림으로 올라오는 것을 막기 위해)
+- **마지막 3주에 알림 종류가 모두 보이도록 정해 둔 상황**이 들어 있습니다. 기준일은 2026-02-25(수).
+
+| 정해 둔 상황 | 홈에서 보이는 알림 |
+|---|---|
+| 담배: 3주째 평소의 55% 수준 | **이어지는 변화** ("며칠째 평소보다 계속 낮아요") |
+| 음료: 오늘 하루만 평소의 3배 | 하루 점수 (급증) |
+| 음료: 이틀 전 평소의 15% | 하루 점수 (급감) — 그날 알림이 안 날 수 있음 |
+| 식재료: 일주일째 0원 | **며칠째 안 팔려요** |
+| OTC/건강기능제품: 어제 평소의 6배 | 많이 팔림 (이미 하루 비교가 알리면 그 설명이 보임) |
+
+- 알림 건수와 종류는 설정의 **알림 민감도**(낮음/보통/높음)를 바꾸면 달라집니다. (예: 보통 7건, 높음 10건)
+- 가짜 점주 기록과 AI 문장은 이 가짜 데이터로 만든 것이라 실제 매장 이야기가 아닙니다. AI는 `backend/.env`의 OpenAI 키를 쓰며, 새 알림이 생기면 호출 요금이 붙을 수 있습니다.
+- 같은 방법으로 직접 만들 때: `.\.venv\Scripts\python.exe tools\make_lab_data.py --demo` (backend 폴더에서)
+
 ## 1. 무엇이 있나
 
 | 파일 | 하는 일 |
 |---|---|
 | `backend/tools/make_lab_data.py` | 랩 DB(`backend/lab/lab.db`)와 정답 기록(`lab.truth.json`)을 만듭니다 |
 | `backend/tools/eval_detection.py` | 정답이 표시된 이상을 탐지가 몇 개 잡는지, 오경보는 얼마나 되는지 셉니다 |
-| `backend/tools/serve_lab.py` | 랩 DB로 서버를 켭니다 (화면 맨 위에 "시연용 데이터" 표시) |
+| `backend/tools/serve_lab.py` | 랩 DB로 서버를 켭니다 (화면 맨 위에 "시연용 데이터" 표시, 비밀번호 아무거나) |
+| `backend/tools/start_demo.ps1` | **시연 한 번에 켜기·끄기** (0번 참고) |
+| `backend/tools/export_lab_csv.py` | 랩 DB를 엑셀로 볼 수 있는 CSV로 내보내기 |
+| `backend/tools/eval_changepoint.py`, `eval_rare.py`, `eval_final.py`, `eval_sensitivity.py` | 새 탐지 방식 실험·평가 ([stats-guide.md](stats-guide.md) 4장) |
 | `backend/lab/` | 만들어진 DB들 (git에 올라가지 않음) |
 
 ## 2. 사용법 (backend 폴더에서)

@@ -166,7 +166,7 @@ def day_multiplier(d: date, params: dict) -> float:
     mult = params["weekday_mult"][d.weekday()]
     if is_market_day(d):
         mult *= ASSUMED["market_day_multiplier"]
-    kind = holiday_of(d)
+    kind = None if params.get("no_holidays") else holiday_of(d)
     if kind:
         mult *= ASSUMED["holiday_multiplier_long"] if kind[0] == "long" else ASSUMED["holiday_multiplier_single"]
     return mult
@@ -174,7 +174,7 @@ def day_multiplier(d: date, params: dict) -> float:
 
 def synth_day(d: date, params: dict, s_day: float, rng: random.Random, events: dict[str, tuple[str, float]]) -> list[tuple[str, str, int, int]]:
     """(코드, 분류, 수량, 금액) 목록. events = {분류: (종류, 배수)} 는 정답이 표시된 이상."""
-    kind = holiday_of(d)
+    kind = None if params.get("no_holidays") else holiday_of(d)
     presence_adj = ASSUMED["presence_multiplier_long_holiday"] if kind and kind[0] == "long" else 1.0
     f = math.exp(rng.gauss(0, s_day)) * day_multiplier(d, params)
     rows = []
@@ -243,19 +243,70 @@ def pick_events(synthetic_days: list[date], params: dict, rng: random.Random, la
     return sorted(events, key=lambda e: e["date"])
 
 
+def demo_scenarios(params: dict, latest: date) -> tuple[list[dict], list[str]]:
+    """시연 화면에서 알림 종류가 모두 보이도록 마지막 3주에 정해 둔 상황. (시연 DB 전용, 가짜)
+    돌려주는 값: (상황 목록, 건너뛴 이유 목록)"""
+    cats = params["categories"]
+    typical = lambda n: math.exp(cats[n]["mu"])
+    dense = sorted([n for n, c in cats.items() if c["p"] >= 0.9], key=lambda n: -typical(n))
+    mid = sorted([n for n, c in cats.items() if 0.3 <= c["p"] < 0.9], key=lambda n: abs(cats[n]["p"] - 0.6))
+    rare = sorted([n for n, c in cats.items() if 0 < c["p"] < 0.15], key=lambda n: -cats[n]["p"])
+    span = lambda n: [latest - timedelta(days=i) for i in range(n - 1, -1, -1)]
+    scenarios, skipped = [], []
+
+    def add(name, category, dates, event, text):
+        scenarios.append({"name": name, "category": category, "dates": [d.isoformat() for d in dates], "event": list(event), "text": text})
+
+    if dense:
+        add("며칠째 이어지는 감소", dense[0], span(21), ("drop", 0.55), "평소의 55% 수준이 3주째 이어짐 (하루하루는 들쭉날쭉해서 눈에 안 띔)")
+    else:
+        skipped.append("이어지는 감소: 거의 매일 팔리는 분류가 없어요")
+    big = [n for n in dense[1:] if typical(n) * 1.5 >= MIN_EVENT_GAP]
+    if big:
+        add("오늘 급증", big[0], [latest], ("spike", 3.0), "오늘 하루만 평소의 3배")
+    else:
+        skipped.append("오늘 급증: 금액이 충분히 큰 분류가 없어요")
+    small_drop = [n for n in dense[1:] if typical(n) * 0.85 >= MIN_EVENT_GAP]  # 급증과 같은 분류여도 날짜가 다릅니다
+    if small_drop:
+        add("이틀 전 급감", small_drop[0], [latest - timedelta(days=2)], ("drop", 0.15), "하루 평소의 15%")
+    else:
+        skipped.append("이틀 전 급감: 금액이 충분히 큰 분류가 없어요")
+    if mid:
+        add("며칠째 안 팔림", mid[0], span(7), ("zero", 0.0), "평소 팔리던 분류가 일주일째 0원")
+    else:
+        skipped.append("며칠째 안 팔림: 0원이 많은 분류가 없어요")
+    if rare:
+        add("거의 안 팔리던 분류가 많이 팔림", rare[0], [latest - timedelta(days=1)], ("spike", 6.0), "어제 평소의 6배")
+    else:
+        skipped.append("많이 팔림: 거의 안 팔리는 분류가 없어요")
+    return scenarios, skipped
+
+
 # ---------------------------------------------------------------- 만들기
-def build(source: Path, out: Path, start: date, seed: int) -> dict:
+def build(source: Path, out: Path, start: date, seed: int, demo: bool = False) -> dict:
+    """demo=True 면 실제 날짜도 가짜로 채웁니다(실제 값은 하나도 들어가지 않음). 휴일 효과는 끄고, 마지막 3주에
+    알림 종류가 모두 보이도록 정해 둔 상황(demo_scenarios)을 넣습니다. 분포는 실제 기록에서 추정한 것을 그대로 씁니다."""
     real = load_real_days(source)
     params = estimate(real)
+    if demo:
+        params["no_holidays"] = True  # 앱에는 아직 휴일표가 없으므로 시연에서는 휴일 효과를 넣지 않습니다
     latest = max(real)
     all_dates = [start + timedelta(days=i) for i in range((latest - start).days + 1)]
     s_day, simulated_sd = calibrate_day_effect(params, seed, all_dates)
     rng = random.Random(seed)
-    synthetic_days = [d for d in all_dates if d not in real]
+    kept_real = {} if demo else real  # 시연 DB는 실제 값을 쓰지 않습니다
+    synthetic_days = [d for d in all_dates if d not in kept_real]
     events = pick_events(synthetic_days, params, rng, latest)
+    scenarios, skipped = demo_scenarios(params, latest) if demo else ([], [])
+    if demo:  # 마지막 3주는 정해 둔 상황만 보이도록, 흩어 넣은 이상에서는 뺍니다
+        events = [e for e in events if date.fromisoformat(e["date"]) < latest - timedelta(days=21)]
     events_by_day: dict[date, dict[str, tuple[str, float]]] = {}
     for e in events:
         events_by_day.setdefault(date.fromisoformat(e["date"]), {})[e["category"]] = (e["kind"], e["factor"])
+    for s in scenarios:
+        for iso in s["dates"]:
+            events_by_day.setdefault(date.fromisoformat(iso), {})[s["category"]] = tuple(s["event"])
+    real = kept_real
 
     if out.exists():
         out.unlink()
@@ -302,6 +353,9 @@ def build(source: Path, out: Path, start: date, seed: int) -> dict:
         "요일 효과(월=0 … 일=6, 월·화·수 평균=1.0)": {str(k): round(v, 3) for k, v in params["weekday_mult"].items()},
         "가정값(실제 근거 없음)": {k: (v if not isinstance(v, dict) else {str(a): b for a, b in v.items()}) for k, v in ASSUMED.items()},
         "정답이 표시된 이상": events,
+        "시연 상황(마지막 3주, 시연 DB 전용)": scenarios,
+        "시연 상황 중 건너뛴 것": skipped,
+        "시연 DB": demo,
         "점주 기록(가짜)": notes,
         "주의": "이 데이터로 어떤 경향도 발견할 수 없습니다. 시연과 연습용입니다.",
     }
@@ -317,17 +371,24 @@ def truth_path(db_path: Path) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description="시연·시험용 랩 DB 만들기")
     parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE, help="실제 매출 CSV 폴더")
-    parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="만들 SQLite 파일 (실제 DB가 아닙니다)")
+    parser.add_argument("--out", type=Path, default=None, help="만들 SQLite 파일 (실제 DB가 아닙니다). 기본: lab/lab.db, --demo 면 lab/demo.db")
     parser.add_argument("--start", type=date.fromisoformat, default=date(2025, 5, 1), help="가짜로 채울 시작 날짜")
     parser.add_argument("--seed", type=int, default=20261029, help="같은 숫자면 같은 데이터가 만들어집니다")
+    parser.add_argument("--demo", action="store_true", help="시연 DB: 실제 날짜도 가짜로 채우고(실제 값 없음), 마지막 3주에 알림 종류가 모두 보이는 상황을 넣습니다")
     args = parser.parse_args()
-    if args.out.suffix != ".db":
+    out = args.out or (DEFAULT_OUT.with_name("demo.db") if args.demo else DEFAULT_OUT)
+    if out.suffix != ".db":
         raise SystemExit("--out 은 .db 파일이어야 해요. (실제 DB에는 쓰지 않습니다)")
-    meta = build(args.source, args.out, args.start, args.seed)
+    meta = build(args.source, out, args.start, args.seed, demo=args.demo)
+    args.out = out
     days = meta["날짜 수"]
-    print(f"랩 DB를 만들었어요: {args.out}")
+    print(f"랩 DB를 만들었어요: {args.out}" + (" (시연 DB: 실제 값 없음)" if args.demo else ""))
     print(f"  기간 {meta['기간'][0]} ~ {meta['기간'][1]}  (전체 {days['전체']}일 = 실제 {days['실제']}일 + 가짜 {days['가짜']}일)")
     print(f"  정답이 표시된 이상 {len(meta['정답이 표시된 이상'])}건, 가짜 점주 기록 {len(meta['점주 기록(가짜)'])}건")
+    for s in meta["시연 상황(마지막 3주, 시연 DB 전용)"]:
+        print(f"  시연 상황: {s['category']} — {s['name']} ({s['text']})")
+    for reason in meta["시연 상황 중 건너뛴 것"]:
+        print(f"  건너뜀: {reason}")
     print(f"  정답 기록: {truth_path(args.out)}")
     return 0
 

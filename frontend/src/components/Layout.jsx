@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { request } from "../api.js";
 
 const TABS = [
@@ -15,6 +15,21 @@ export default function Layout() {
     request("/api/health")
       .then((body) => setLab(Boolean(body.lab)))
       .catch(() => setLab(false));
+  }, []);
+
+  // 처음 로그인했는데 점포를 등록한 적도, 건너뛴 적도 없으면 홈 대신 "처음 설정"으로 보냅니다. (한 번만 확인)
+  const navigate = useNavigate();
+  const location = useLocation();
+  useEffect(() => {
+    if (location.pathname !== "/") return;
+    let alive = true;
+    request("/api/settings/setup")
+      .then((setup) => alive && setup.needs_setup && navigate("/setup", { replace: true }))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

@@ -19,6 +19,9 @@ def _never_touch_real_database(monkeypatch):
                 "AI_MONTHLY_CALL_LIMIT", "AI_BRIEFING_MAX_ITEMS", "AI_NOTE_MAX_CHARS"]:
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(config, "AI_ENV_FILE", None)
+    # 공식 일정 가져오기 키도 마찬가지입니다. (시험은 가짜 응답만 씁니다)
+    for key in ["DATA_GO_KR_API_KEY", "NEIS_API_KEY", "KAKAO_REST_API_KEY", "MARKET_API_KEY"]:
+        monkeypatch.delenv(key, raising=False)
 
 
 def build_app(tmp_path, name="test.db", llm=None):

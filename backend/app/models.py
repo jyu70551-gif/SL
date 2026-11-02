@@ -114,6 +114,28 @@ class AppSetting(Base):
     value: Mapped[str] = mapped_column(String(40))
 
 
+class ScheduleEvent(Base):
+    """달력에 표시되는 일정. 지금은 점주가 직접 입력한 방학(kind='vacation')이고,
+    이어서 공식 공휴일·학사일정이 같은 형식으로 들어옵니다. source 는 출처(owner 직접 입력 / official 공식 데이터)."""
+
+    __tablename__ = "schedule_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kind: Mapped[str] = mapped_column(String(12), index=True)  # vacation / holiday / school
+    name: Mapped[str] = mapped_column(String(60), default="", server_default="")
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date] = mapped_column(Date)
+    source: Mapped[str] = mapped_column(String(10), default="owner", server_default="owner")
+
+
+class MarketDay(Base):
+    """장날: 매달 이 날짜(1~31)에 장이 섭니다. 예: 3, 8, 13, 18, 23, 28"""
+
+    __tablename__ = "market_days"
+
+    day: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+
+
 class AiFeedback(Base):
     """점검·초안에 대한 "도움이 됐어요 / 아니에요" 평가."""
 

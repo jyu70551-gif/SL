@@ -19,7 +19,7 @@ CATEGORIES = [("45", "담배", 90000), ("31", "음료", 14000), ("01", "간편�
 HEADER = "상품코드,대분류,판매수량,판매액,연도,달,일,요일\r\n"
 
 
-def fake_source(tmp_path, days=14, seed=7):
+def fake_source(tmp_path, days=14, seed=7, zero_rate=0.15):
     """가상 숫자로 만든 '실제처럼 보이는' 날짜별 CSV. 월·화·수만 있습니다."""
     rng = random.Random(seed)
     folder = tmp_path / "csv"
@@ -31,7 +31,7 @@ def fake_source(tmp_path, days=14, seed=7):
             weekday = "월화수"[day.weekday()]
             rows, total_q, total_a = [], 0, 0
             for code, name, base in CATEGORIES:
-                amount = int(base * rng.uniform(0.6, 1.4) // 50 * 50) if rng.random() > 0.15 else 0
+                amount = int(base * rng.uniform(0.6, 1.4) // 50 * 50) if rng.random() >= zero_rate else 0
                 qty = max(1, amount // 1500) if amount else 0
                 rows.append(f"{code},{name},{qty},{amount},{day.year},{day.month},{day.day},{weekday}")
                 total_q, total_a = total_q + qty, total_a + amount
@@ -75,6 +75,45 @@ def test_real_days_are_kept_exactly_and_never_overlap_synthetic(tmp_path, source
             code, name, qty, amount, *_ = line.split(",")
             if name != "합계":
                 assert cells[(day, name)] == (int(qty), int(amount))
+
+
+def test_demo_database_contains_no_real_values_and_has_the_scripted_situations(tmp_path):
+    from app import anomalies
+
+    source = fake_source(tmp_path, days=14, zero_rate=0.0)  # 모든 분류가 거의 매일 팔리는 가상 자료
+    out = tmp_path / "demo.db"
+    meta = build(source, out, date(2025, 9, 1), 3, demo=True)
+    uploads, cells, _ = read(out)
+    assert meta["날짜 수"]["실제"] == 0 and all(u.filename == "synthetic" for u in uploads.values())  # 실제 파일 이름도 값도 없다
+    real_cells = {}
+    for f in source.glob("sales_*.csv"):
+        day = date.fromisoformat(f.stem.split("_")[1])
+        for line in f.read_text(encoding="utf-8").splitlines()[1:]:
+            code, name, qty, amount, *_ = line.split(",")
+            if name != "합계":
+                real_cells[(day, name)] = (int(qty), int(amount))
+    same = sum(1 for key, value in real_cells.items() if cells[key] == value)  # 50원 단위라 작은 금액은 우연히 같을 수 있다
+    assert real_cells and same / len(real_cells) < 0.1
+    for day in {d for d, _ in real_cells}:  # 하루 전체가 같은 날은 없다
+        assert any(cells[(d, c)] != v for (d, c), v in real_cells.items() if d == day)
+    latest = date.fromisoformat(meta["기간"][1])
+    names = {s["name"] for s in meta["시연 상황(마지막 3주, 시연 DB 전용)"]}
+    assert {"며칠째 이어지는 감소", "오늘 급증", "이틀 전 급감"} <= names
+    assert meta["시연 상황 중 건너뛴 것"]  # 이 가상 자료에는 0원이 많은 분류가 없어 건너뛴 것이 있다
+    assert all(date.fromisoformat(e["date"]) < latest - timedelta(days=21) for e in meta["정답이 표시된 이상"])  # 마지막 3주에는 흩어 넣은 이상이 없다
+    totals = {d: sum(a for (dd, _), (_, a) in cells.items() if dd == d) for d in uploads}
+    holiday_days = [d for d in totals if holiday_of(d) is not None and holiday_of(d)[0] == "long"]
+    ordinary = [totals[d] for d in totals if holiday_of(d) is None]
+    assert holiday_days and sum(totals[d] for d in holiday_days) / len(holiday_days) > 0.75 * (sum(ordinary) / len(ordinary))  # 휴일 효과를 끄면 연휴에도 평소처럼 팔린다
+    sf = make_session_factory(make_engine(f"sqlite:///{out}"))
+    with sf() as db:
+        judged = anomalies._analyze(db, "normal")["judged"]
+    today_spike = next(s for s in meta["시연 상황(마지막 3주, 시연 DB 전용)"] if s["name"] == "오늘 급증")
+    assert judged[(today_spike["category"], latest)]["anomaly"] is not None  # 오늘 급증은 확인할 사항에 올라온다
+    trend = next(s for s in meta["시연 상황(마지막 3주, 시연 DB 전용)"] if s["name"] == "며칠째 이어지는 감소")
+    window = [latest - timedelta(days=i) for i in range(21)]
+    low = [d for d in window if (judged[(trend["category"], d)]["anomaly"] or {}).get("direction") == "low"]
+    assert low  # 3주 이어지는 감소는 그 사이에 적어도 한 번은 알려진다
 
 
 def test_every_date_in_range_exists_once_with_every_category_and_one_cutoff(tmp_path, source):

@@ -125,6 +125,29 @@ function EmptyCard() {
   );
 }
 
+// 점포를 등록하지 않았으면(처음 설정을 건너뛴 경우) 등록할 때까지 홈 위쪽에 안내를 남깁니다.
+function SetupReminder() {
+  const [missing, setMissing] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    request("/api/settings/setup")
+      .then((s) => alive && setMissing(!s.has_location))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (!missing) return null;
+  return (
+    <Card title="점포를 등록해 주세요">
+      <p className="card-note">점포 위치를 등록하면 설정에서 근처 학교의 방학을 자동으로 가져올 수 있어요.</p>
+      <Link to="/setup" className="button">
+        점포 등록하기
+      </Link>
+    </Card>
+  );
+}
+
 export default function Home() {
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -154,6 +177,8 @@ export default function Home() {
           </p>
         )}
       </div>
+
+      <SetupReminder />
 
       {failed && (
         <Card title="숫자를 불러오지 못했어요">

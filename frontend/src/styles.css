@@ -1417,3 +1417,154 @@ a {
   color: var(--muted);
   font-size: 14px;
 }
+
+/* 설정: 점포·방학·비밀번호 입력 */
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.settings-form label,
+.settings-fieldset legend {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.settings-form input {
+  height: 48px;
+  padding: 0 12px;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color-scheme: dark;
+}
+
+.settings-fieldset {
+  margin: 4px 0 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.day-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.day-presets .text-button[aria-pressed="true"] {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.day-chip {
+  min-height: 44px;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.day-chip[aria-pressed="true"] {
+  color: var(--amber-text);
+  background: var(--amber);
+  border-color: var(--amber);
+  font-weight: 700;
+}
+
+.settings-saved::before {
+  content: "\2713 ";
+  color: var(--up);
+  font-weight: 700;
+}
+
+.settings-saved {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.vacation-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.vacation-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.vacation-actions {
+  display: flex;
+  gap: 12px;
+  flex: none;
+}
+
+/* 설정: 근처 학교 선택·방학 미리보기 */
+.school-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.school-block {
+  margin-bottom: 12px;
+}
+
+.vacation-list .muted {
+  font-size: 0.8125rem;
+}
+
+/* 처음 설정 */
+.setup-step {
+  margin: 20px 0 8px;
+  font-size: 1.0625rem;
+}
+
+.setup-actions {
+  margin: 8px 0 12px;
+}
+
+.address-search {
+  display: flex;
+  gap: 8px;
+}
+.address-search input {
+  flex: 1;
+  min-width: 0;
+}
+.address-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.address-list .text-button {
+  width: 100%;
+  text-align: left;
+}
+.address-manual summary {
+  cursor: pointer;
+  color: var(--muted, inherit);
+  margin: 4px 0 8px;
+}

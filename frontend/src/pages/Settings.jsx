@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { request } from "../api.js";
 import { Card } from "../components/Card.jsx";
+import MarketCard from "../components/MarketCard.jsx";
+import PasswordCard from "../components/PasswordCard.jsx";
+import SchoolVacationCard from "../components/SchoolVacationCard.jsx";
 
 const STATE_TEXT = {
   ready: "켜져 있어요",
@@ -179,9 +182,11 @@ export default function Settings() {
   return (
     <section>
       <h1 className="page-title">설정</h1>
+      <SchoolVacationCard />
+      <MarketCard />
       <Sensitivity />
       <AiStatus />
-      <p className="empty-note">방학 기간과 비밀번호 바꾸기는 아직 준비 중이에요.</p>
+      <PasswordCard />
     </section>
   );
 }

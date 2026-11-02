@@ -3,7 +3,7 @@ from sqlalchemy.engine import URL, Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-REQUIRED_TABLES = ["auth_state", "reviewed_anomalies", "ai_usage", "ai_briefings", "ai_feedback", "app_settings"]  # 가장 최근에 추가한 테이블까지 확인합니다
+REQUIRED_TABLES = ["auth_state", "reviewed_anomalies", "ai_usage", "ai_briefings", "ai_feedback", "app_settings", "schedule_events", "market_days"]  # 가장 최근에 추가한 테이블까지 확인합니다
 REQUIRED_COLUMNS = {"reviewed_anomalies": ["reasons", "memo", "source", "raw_text", "time_hint", "ai_edited"]}
 
 CONNECTION_CHECKLIST = [
