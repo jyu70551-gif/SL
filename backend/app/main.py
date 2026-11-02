@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.engine import URL
 
-from app import address, anomalies, auth, config, home, markets, sales_detail, schools, uploads
+from app import address, anomalies, auth, config, holidays, home, markets, sales_detail, schools, uploads
 from app import settings as settings_page  # create_app 안의 settings 변수와 이름이 겹치지 않게
 from app.ai import router as ai_router
 from app.ai.service import AiService
@@ -79,6 +79,7 @@ def create_app(database_url: str | URL | None = None, llm=None) -> FastAPI:
     app.include_router(schools.router)
     app.include_router(address.router)
     app.include_router(markets.router)
+    app.include_router(holidays.router)
     app.include_router(sales_detail.router)
     app.include_router(ai_router.router)
     return app

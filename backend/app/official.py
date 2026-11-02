@@ -17,6 +17,7 @@ from datetime import date, timedelta
 SCHOOL_PLACE_URL = "https://api.data.go.kr/openapi/tn_pubr_public_elesch_mskul_lc_api"
 NEIS_SCHOOL_INFO_URL = "https://open.neis.go.kr/hub/schoolInfo"
 NEIS_SCHEDULE_URL = "https://open.neis.go.kr/hub/SchoolSchedule"
+HOLIDAY_URL = "http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo"
 MARKET_URL = "https://api.data.go.kr/openapi/tn_pubr_public_trdit_mrkt_api"
 RADIUS_M = 500
 PAGE_SIZE = 1000
@@ -119,6 +120,30 @@ def nearby(places, lat: float, lon: float, radius_m: float = RADIUS_M) -> list[d
         if d <= radius_m:
             out.append({"school_id": get_("school_id"), "name": get_("name"), "kind": get_("kind"), "address": get_("address"), "distance_m": round(d)})
     return sorted(out, key=lambda s: (s["distance_m"], s["name"]))
+
+
+# ---------------------------------------------------------------- 공휴일 (한국천문연구원 특일 정보)
+def fetch_holidays(get, key: str, year: int) -> list[dict]:
+    """그 해의 공휴일(대체공휴일 포함) [{date, name}]. 쉬는 날(isHoliday=Y)만 담습니다."""
+    if not key:
+        raise OfficialError("no_key")
+    data = get(HOLIDAY_URL, {"serviceKey": key, "solYear": year, "numOfRows": 100, "_type": "json"})
+    response = data.get("response") or {}
+    if (response.get("header") or {}).get("resultCode") != "00":
+        raise OfficialError("api_error")
+    items = ((response.get("body") or {}).get("items") or {})
+    items = items.get("item") if isinstance(items, dict) else []  # 결과가 없으면 items 가 빈 글자로 옵니다
+    if isinstance(items, dict):
+        items = [items]
+    out = []
+    for item in items or []:
+        try:
+            day = date(int(str(item["locdate"])[:4]), int(str(item["locdate"])[4:6]), int(str(item["locdate"])[6:8]))
+        except (KeyError, ValueError):
+            continue
+        if item.get("isHoliday") == "Y" and day.year == year:
+            out.append({"date": day, "name": str(item.get("dateName", "")).strip()[:40] or "공휴일"})
+    return sorted(out, key=lambda h: h["date"])
 
 
 # ---------------------------------------------------------------- 전통시장 (장날)

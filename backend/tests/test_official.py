@@ -439,3 +439,63 @@ def test_markets_require_login_and_hide_key_on_failure(market_client):
     assert response.status_code == 502 and "fake-market-key" not in response.text
     market_client.headers.pop("Authorization")
     assert market_client.get("/api/settings/markets").status_code == 401
+
+
+# ---------------------------------------------------------------- 공휴일 (한국천문연구원 특일 정보, 가짜 응답)
+def holiday_response(year, *rows):
+    items = [{"locdate": d.strftime("%Y%m%d"), "dateName": name, "isHoliday": flag} for d, name, flag in rows]
+    return {"response": {"header": {"resultCode": "00"}, "body": {"items": {"item": items} if items else "", "totalCount": len(items)}}}
+
+
+@pytest.fixture
+def holiday_client(client, monkeypatch):
+    monkeypatch.setenv("HOLIDAY_API_KEY", "fake-holiday-key")
+    this_year = date.today().year
+
+    def fake(url, params):
+        y = params["solYear"]
+        rows = {this_year: [(date(y, 1, 1), "1월1일", "Y"), (date(y, 5, 1), "근로자의날", "N"), (date(y, 3, 2), "대체공휴일(삼일절)", "Y")],
+                this_year + 1: [(date(y, 1, 1), "1월1일", "Y")]}.get(y, [])
+        return holiday_response(y, *rows)
+
+    client.app.state.official_get = fake
+    client.this_year = this_year
+    return client
+
+
+def test_fetch_holidays_keeps_only_days_off_and_handles_empty_year():
+    key_rows = holiday_response(2030, (date(2030, 5, 1), "근로자의날", "N"), (date(2030, 1, 1), "1월1일", "Y"), (date(2030, 3, 2), "대체공휴일(삼일절)", "Y"))
+    got = official.fetch_holidays(lambda u, p: key_rows, "k", 2030)
+    assert [(h["date"], h["name"]) for h in got] == [(date(2030, 1, 1), "1월1일"), (date(2030, 3, 2), "대체공휴일(삼일절)")]
+    assert official.fetch_holidays(lambda u, p: holiday_response(2031), "k", 2031) == []
+    with pytest.raises(official.OfficialError):
+        official.fetch_holidays(lambda u, p: {"response": {"header": {"resultCode": "30"}}}, "k", 2030)
+
+
+def test_holidays_without_key_do_nothing(client):
+    assert client.post("/api/settings/holidays/preview").json() == {"status": "no_key", "items": []}
+    assert client.post("/api/settings/holidays/save").json()["status"] == "no_key"
+
+
+def test_holiday_preview_does_not_save_and_save_skips_duplicates(holiday_client):
+    c, y = holiday_client, holiday_client.this_year
+    preview = c.post("/api/settings/holidays/preview").json()
+    assert preview["status"] == "ready" and [i["date"] for i in preview["items"]] == [f"{y}-01-01", f"{y}-03-02", f"{y + 1}-01-01"]
+    assert not any(i["already_saved"] for i in preview["items"])
+    assert c.get("/api/settings/holidays").json()["this_year_count"] == 0
+    first = c.post("/api/settings/holidays/save").json()
+    assert (first["saved"], first["this_year_count"], first["next_year_count"]) == (3, 2, 1)
+    assert c.post("/api/settings/holidays/save").json()["saved"] == 0
+    assert all(i["already_saved"] for i in c.post("/api/settings/holidays/preview").json()["items"])
+    assert c.get("/api/settings/vacations").json()["items"] == []  # 공휴일은 방학 목록에 섞이지 않습니다
+
+
+def test_holiday_failure_is_502_without_key_and_requires_login(holiday_client):
+    def broken(url, params):
+        raise official.OfficialError("network")
+
+    holiday_client.app.state.official_get = broken
+    response = holiday_client.post("/api/settings/holidays/preview")
+    assert response.status_code == 502 and "fake-holiday-key" not in response.text
+    holiday_client.headers.pop("Authorization")
+    assert holiday_client.post("/api/settings/holidays/save").status_code == 401

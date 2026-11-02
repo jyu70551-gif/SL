@@ -106,6 +106,8 @@ export default function SchoolVacationCard({ onSaved }) {
   const toggleSchool = (id) => setPicked((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]));
   const togglePeriod = (key) => setChosen((c) => ({ ...c, [key]: !c[key] }));
   const chosenCount = Object.values(chosen).filter(Boolean).length;
+  const periods = preview.flatMap((school) => school.periods);
+  const allSaved = periods.length > 0 && periods.every((p) => p.already_saved);
 
   return (
     <Card title="근처 학교 방학 가져오기">
@@ -148,6 +150,7 @@ export default function SchoolVacationCard({ onSaved }) {
       {step === "preview" && (
         <>
           <p className="card-note">학교가 공식 학사일정에 적은 방학이에요. 맞는 것만 체크해서 저장해 주세요.</p>
+          {allSaved && <p className="settings-saved">이 학교들의 방학은 이미 모두 저장돼 있어요. (체크가 잠겨 있는 건 저장됐다는 뜻이에요)</p>}
           {preview.map((school) => (
             <div key={school.school_id} className="school-block">
               <h3 className="group-title">{school.name}</h3>
@@ -158,7 +161,7 @@ export default function SchoolVacationCard({ onSaved }) {
                   return (
                     <li key={key}>
                       <label className="check-row">
-                        <input type="checkbox" checked={Boolean(chosen[key])} disabled={p.already_saved} onChange={() => togglePeriod(key)} />
+                        <input type="checkbox" checked={p.already_saved || Boolean(chosen[key])} disabled={p.already_saved} onChange={() => togglePeriod(key)} />
                         <span>
                           {p.label} · {dateText(p.start_date)} ~ {dateText(p.end_date)} ({p.days}일)
                           {p.already_saved && <span className="muted"> · 이미 저장됨</span>}
@@ -172,7 +175,7 @@ export default function SchoolVacationCard({ onSaved }) {
           ))}
           <div className="button-row">
             <button type="button" className="button" onClick={save} disabled={busy || chosenCount === 0}>
-              {busy ? "저장 중…" : `선택한 방학 저장 (${chosenCount}건)`}
+              {busy ? "저장 중…" : allSaved ? "모두 저장돼 있어요" : `선택한 방학 저장 (${chosenCount}건)`}
             </button>
             <button type="button" className="button secondary" onClick={() => setStep("schools")} disabled={busy}>
               이전

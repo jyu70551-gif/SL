@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { request } from "../api.js";
 import { Card } from "../components/Card.jsx";
+import HolidayCard from "../components/HolidayCard.jsx";
 import MarketCard from "../components/MarketCard.jsx";
 import PasswordCard from "../components/PasswordCard.jsx";
 import SchoolVacationCard from "../components/SchoolVacationCard.jsx";
@@ -184,6 +185,7 @@ export default function Settings() {
       <h1 className="page-title">설정</h1>
       <SchoolVacationCard />
       <MarketCard />
+      <HolidayCard />
       <Sensitivity />
       <AiStatus />
       <PasswordCard />
