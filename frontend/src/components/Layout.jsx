@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { request } from "../api.js";
 
 const TABS = [
   { to: "/", label: "홈", end: true },
@@ -7,8 +9,21 @@ const TABS = [
 ];
 
 export default function Layout() {
+  // 시연용 가짜 데이터가 섞인 랩 서버일 때만 맨 위에 알립니다. (실제 매출로 착각하지 않게)
+  const [lab, setLab] = useState(false);
+  useEffect(() => {
+    request("/api/health")
+      .then((body) => setLab(Boolean(body.lab)))
+      .catch(() => setLab(false));
+  }, []);
+
   return (
     <div className="app-shell">
+      {lab && (
+        <div className="lab-banner" role="status">
+          시연용 데이터예요. 가짜 숫자가 섞여 있어서 실제 매출이 아니에요.
+        </div>
+      )}
       <main className="app-main">
         <Outlet />
       </main>

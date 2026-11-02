@@ -17,3 +17,7 @@ __pycache__/
 
 # Logs
 *.log
+
+# 개발 대화내역(실제 매출 숫자가 들어 있어 올리지 않습니다)
+.sl-history/
+backend/lab/

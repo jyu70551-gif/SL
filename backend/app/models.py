@@ -1,6 +1,7 @@
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Date, DateTime, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Integer, String, Text, UniqueConstraint
+from sqlalchemy.sql import expression
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -67,3 +68,59 @@ class ReviewedAnomaly(Base):
     # 점주가 고른 당시 특이사항(쉼표로 이은 고정 키)과 메모. 점주가 직접 적은 기록이며 통계로 입증된 원인이 아닙니다.
     reasons: Mapped[str] = mapped_column(String(255), default="", server_default="")
     memo: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    # Phase 5-3: AI가 정리한 초안인지, 점주가 쓴 원문, 점주 말 속의 시각, 초안을 고쳐서 저장했는지
+    source: Mapped[str] = mapped_column(String(8), default="form", server_default="form")
+    raw_text: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    time_hint: Mapped[str] = mapped_column(String(30), default="", server_default="")
+    ai_edited: Mapped[bool] = mapped_column(Boolean, default=False, server_default=expression.false())
+
+
+class AiUsage(Base):
+    """OpenAI 호출 기록. 월 한도 계산용입니다. 프롬프트·점주 글·응답 원문은 저장하지 않습니다."""
+
+    __tablename__ = "ai_usage"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    kind: Mapped[str] = mapped_column(String(12))  # briefing / note / check
+    model: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ok: Mapped[bool] = mapped_column(Boolean, default=False, server_default=expression.false())
+    error: Mapped[str] = mapped_column(String(40), default="", server_default="")
+
+
+class AiBriefing(Base):
+    """날짜별 "오늘의 점검" 결과. 같은 사실이면 다시 만들지 않습니다."""
+
+    __tablename__ = "ai_briefings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    sales_date: Mapped[date] = mapped_column(Date, unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(10))  # pending / ok / fixed / failed
+    mode: Mapped[str] = mapped_column(String(5), default="fixed", server_default="fixed")  # ai / fixed
+    facts_hash: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    payload: Mapped[str] = mapped_column(Text, default="", server_default="")
+    model: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class AppSetting(Base):
+    """점주가 바꿀 수 있는 설정 (알림 민감도 등). 이름과 값만 저장합니다."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    value: Mapped[str] = mapped_column(String(40))
+
+
+class AiFeedback(Base):
+    """점검·초안에 대한 "도움이 됐어요 / 아니에요" 평가."""
+
+    __tablename__ = "ai_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    kind: Mapped[str] = mapped_column(String(10))  # briefing / draft
+    ref: Mapped[str] = mapped_column(String(80))
+    helpful: Mapped[bool] = mapped_column(Boolean)

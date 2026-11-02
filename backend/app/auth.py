@@ -51,11 +51,19 @@ def require_auth(
 
 
 @router.post("/login")
-def login(body: LoginBody, db: Session = Depends(get_db)):
+def login(body: LoginBody, request: Request, db: Session = Depends(get_db)):
     now = utcnow()
     state = db.get(AuthState, 1)
     if state is None:
         raise HTTPException(status_code=503, detail={"code": "not_configured"})
+
+    # 시연용 랩 서버(tools/serve_lab.py)에서만 켜지는 설정입니다. 비밀번호를 확인하지 않고 잠금도 무시합니다.
+    if getattr(request.app.state, "open_login", False):
+        token = new_token()
+        expires_at = now + timedelta(days=SESSION_DAYS)
+        db.add(AuthSession(token_hash=hash_token(token), created_at=now, expires_at=expires_at))
+        db.commit()
+        return {"token": token, "expires_at": expires_at.isoformat() + "Z"}
 
     if state.locked_until is not None:
         if now < state.locked_until:

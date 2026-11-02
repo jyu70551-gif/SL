@@ -4,17 +4,12 @@ import { request } from "../api.js";
 import { BasisToggle, Card, NeedMore } from "../components/Card.jsx";
 import { DiffLine } from "../components/Change.jsx";
 import SalesChart, { ChartLegend } from "../components/SalesChart.jsx";
+import Disclosure from "../components/Disclosure.jsx";
+import NoteBox from "../components/NoteBox.jsx";
+import SimilarRecords from "../components/SimilarRecords.jsx";
 import { hourLabel, monthDay, shortDate, won } from "../format.js";
+import { REASONS, toggleReason } from "../reasons.js";
 
-// 점주가 고르는 당시 특이사항. 점주가 직접 입력한 기록이며 통계로 입증된 원인이 아닙니다.
-const REASONS = [
-  ["promo", "행사·진열 변경"],
-  ["bulk", "단체 구매"],
-  ["stock", "입고·품절 관련 사항"],
-  ["data_check", "데이터 확인 필요"],
-  ["other", "기타"],
-  ["unknown", "모르겠어요"],
-];
 
 // 주소에 날짜가 없으면: 아직 기록하지 않은 가장 최근의 큰 변화 → 가장 최근의 큰 변화 → 가장 최근 날
 function pickDefault(points) {
@@ -37,11 +32,7 @@ function RecordForm({ category, point, onChanged }) {
   }, [point.date, saved]);
 
   function toggle(key) {
-    setReasons((current) => {
-      if (key === "unknown") return current.includes("unknown") ? [] : ["unknown"]; // "모르겠어요"는 다른 선택과 함께 둘 수 없음
-      const rest = current.filter((k) => k !== "unknown");
-      return rest.includes(key) ? rest.filter((k) => k !== key) : [...rest, key];
-    });
+    setReasons((current) => toggleReason(current, key)); // "모르겠어요"·"특이사항 없음"은 다른 선택과 함께 둘 수 없음
   }
 
   async function submit(event) {
@@ -51,7 +42,16 @@ function RecordForm({ category, point, onChanged }) {
     try {
       await request("/api/anomalies/review", {
         method: "POST",
-        body: { category, dates: [point.date], reasons, memo },
+        body: {
+          category,
+          dates: [point.date],
+          reasons,
+          memo,
+          // AI가 정리했던 기록을 직접 고칠 때는 출처와 점주의 원문을 그대로 남깁니다. (고쳤으므로 ai_edited)
+          ...(saved?.source === "ai"
+            ? { source: "ai", raw_text: saved.raw_text, time_hint: saved.time_hint, ai_edited: true }
+            : {}),
+        },
       });
       await onChanged();
     } catch {
@@ -76,6 +76,15 @@ function RecordForm({ category, point, onChanged }) {
 
   return (
     <Card title="운영 상황 기록" aside={saved ? "✓ 기록됨" : null}>
+      {saved?.source === "ai" && (
+        <p className="ai-sub">
+          AI가 정리해서 점주님이 확인한 기록이에요.
+          {saved.time_hint && ` (${saved.time_hint})`}
+        </p>
+      )}
+      <Disclosure label="한마디로 남기기 (AI가 정리해 줘요)">
+        <NoteBox hintDate={point.date} hintCategory={category} onSaved={onChanged} />
+      </Disclosure>
       <form onSubmit={submit} className="record-form">
         <fieldset className="record-fieldset">
           <legend className="record-legend">당시 특이사항이 있었나요?</legend>
@@ -143,7 +152,8 @@ export default function Category() {
   const latest = points[points.length - 1];
   const point = series && latest ? (points.find((p) => p.date === wantedDate) ?? pickDefault(points)) : null;
   const anomaly = point?.anomaly;
-  const ready = point?.typical != null;
+  const newMethod = Boolean(anomaly?.new_method); // 이어지는 변화·0원이 많은 분류 등 새 방법이 알린 날
+  const ready = point?.typical != null || newMethod;
   const baseline = anomaly ? anomaly.baseline : point?.typical;
   const title = !point
     ? name
@@ -188,16 +198,26 @@ export default function Category() {
                   <DiffLine
                     diff={point.amount - baseline}
                     pct={anomaly ? anomaly.change_pct : baseline ? Math.round(((point.amount - baseline) / baseline) * 1000) / 10 : null}
-                    basis={`같은 요일 비교 기준 ${won(baseline)}`}
+                    basis={newMethod ? `평소 예상 ${won(baseline)}` : `같은 요일 비교 기준 ${won(baseline)}`}
                   />
                 )}
+                {anomaly?.kind_text && <p className="diff-line">{anomaly.kind_text}</p>}
                 <BasisToggle
                   summary={
-                    point.sparse
-                      ? `같은 요일 ${point.weeks_used}번 중 팔린 날의 중간값`
-                      : `같은 요일 ${point.weeks_used}번의 중간값`
+                    newMethod
+                      ? anomaly.basis
+                      : point.sparse
+                        ? `같은 요일 ${point.weeks_used}번 중 팔린 날의 중간값`
+                        : `같은 요일 ${point.weeks_used}번의 중간값`
                   }
                 >
+                  {newMethod ? (
+                    <p>
+                      이날 하루만이 아니라 <strong>앞선 기록의 흐름</strong>을 함께 봤어요. 요일마다 다른 평소 수준은 먼저 빼고, 평소보다 낮거나
+                      높은 날이 쌓이면 알려요. 알림 민감도는 설정에서 바꿀 수 있어요.
+                    </p>
+                  ) : (
+                    <>
                   <p>
                     {shortDate(point.date)} <strong>이전</strong>, 같은 요일이면서 같은 시각({hourLabel(point.cutoff_hour)})까지 집계한{" "}
                     {point.weeks_used}번({dates.map(monthDay).join(", ")})의 <strong>중간값</strong>이에요. 한 번 크게 튄 날에 덜
@@ -205,7 +225,10 @@ export default function Category() {
                   </p>
                   {point.sparse && <p>평소 대부분 0원인 분류라서, 팔린 날끼리의 중간값으로 비교했어요.</p>}
                   <p>홈의 &lsquo;매출 요약&rsquo;은 총매출을 최근 4번의 평균으로 비교하므로 기준이 달라요.</p>
+                    </>
+                  )}
                 </BasisToggle>
+                {anomaly && <SimilarRecords category={name} date={point.date} />}
               </>
             ) : (
               <>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError, request } from "../api.js";
+import AiCheckCard from "../components/AiCheckCard.jsx";
 import AnomalyCard from "../components/AnomalyCard.jsx";
 import { BasisToggle, Card, NeedMore } from "../components/Card.jsx";
 import { DiffLine } from "../components/Change.jsx";
@@ -127,6 +128,7 @@ function EmptyCard() {
 export default function Home() {
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState(false);
+  const [version, setVersion] = useState(0); // 점검에서 기록하면 확인할 사항 목록도 새로 읽습니다
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -169,7 +171,8 @@ export default function Home() {
       {data?.has_data && (
         <>
           <SalesSummary data={data} />
-          <AnomalyCard weekday={data.weekday} />
+          <AiCheckCard onChanged={() => setVersion((v) => v + 1)} />
+          <AnomalyCard key={version} weekday={data.weekday} />
           <FocusFood data={data} />
         </>
       )}

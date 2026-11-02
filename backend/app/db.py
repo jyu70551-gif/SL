@@ -3,7 +3,8 @@ from sqlalchemy.engine import URL, Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-REQUIRED_TABLES = ["auth_state", "reviewed_anomalies"]  # 가장 최근에 추가한 테이블까지 확인합니다
+REQUIRED_TABLES = ["auth_state", "reviewed_anomalies", "ai_usage", "ai_briefings", "ai_feedback", "app_settings"]  # 가장 최근에 추가한 테이블까지 확인합니다
+REQUIRED_COLUMNS = {"reviewed_anomalies": ["reasons", "memo", "source", "raw_text", "time_hint", "ai_edited"]}
 
 CONNECTION_CHECKLIST = [
     "DB_HOST: Supabase의 Connect 화면에서 'Session pooler' 항목의 주소(…pooler.supabase.com)인지",
@@ -76,9 +77,11 @@ def verify_connection(engine: Engine) -> None:
 
 def verify_migrated(engine: Engine) -> None:
     inspector = inspect(engine)
-    ready = all(inspector.has_table(name) for name in REQUIRED_TABLES) and "reasons" in {
-        c["name"] for c in inspector.get_columns("reviewed_anomalies")
-    }
+    ready = all(inspector.has_table(name) for name in REQUIRED_TABLES) and all(
+        column in {c["name"] for c in inspector.get_columns(table)}
+        for table, columns in REQUIRED_COLUMNS.items()
+        for column in columns
+    )
     if not ready:
         raise DbNotMigratedError(
             "DB에는 연결됐지만 필요한 테이블이나 열이 아직 없어요(새로 추가된 항목이 있을 수 있어요). backend 폴더에서 "

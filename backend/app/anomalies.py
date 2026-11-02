@@ -10,7 +10,11 @@
 - **거의 늘 0인 대분류**(평소의 절반 이상이 0원)는 따로 봅니다. 안 팔린 날은 이상으로 보지 않고,
   팔린 날만 팔렸을 때의 금액끼리 비교합니다.
 - 홈 목록에는 가장 최근 올린 날짜로부터 7일 안의 이상한 날 중, 아직 "확인함·정상"을 누르지 않은 것만 올립니다.
+
+위의 하루 비교에 더해, 기록이 28일 이상 쌓이면 detection.py 의 방법이 **이어지는 변화**와 **0원이 많은 분류**까지 봅니다.
+같은 칸에 두 방법이 모두 알리면 위의 하루 비교를 남깁니다. 점수 기준과 새 방법의 기준은 설정의 민감도(낮음·보통·높음)가 바꿉니다.
 """
+from collections import defaultdict
 from datetime import date, timedelta
 from statistics import median
 
@@ -20,9 +24,10 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app import auth
+from app import auth, detection
 from app.auth import get_db, require_auth
 from app.models import DailySale, ReviewedAnomaly, SalesUpload
+from app.settings import get_sensitivity
 
 router = APIRouter(prefix="/api/anomalies", tags=["anomalies"], dependencies=[Depends(require_auth)])
 
@@ -64,8 +69,9 @@ def baseline_of(history: list[int]) -> tuple[int, bool]:
     return round(median(history)), False
 
 
-def judge(amount: int, history: list[int]) -> dict | None:
+def judge(amount: int, history: list[int], threshold: float | None = None) -> dict | None:
     """그날 금액이 평소(history)와 많이 다른지. 이상하면 설명 값을, 아니면 None을 돌려줍니다."""
+    threshold = SCORE_THRESHOLD if threshold is None else threshold
     zeros = sum(1 for v in history if v == 0)
     if zeros / len(history) >= SPARSE_ZERO_SHARE:
         sold = [v for v in history if v > 0]
@@ -84,7 +90,7 @@ def judge(amount: int, history: list[int]) -> dict | None:
         values = [float(v) for v in history]
 
     score = (amount - center) / _scale(values, center)
-    if abs(score) < SCORE_THRESHOLD or abs(amount - center) < MIN_AMOUNT_GAP:
+    if abs(score) < threshold or abs(amount - center) < MIN_AMOUNT_GAP:
         return None
     return {"direction": "high" if score > 0 else "low", "baseline": round(base), "score": round(score, 1)}
 
@@ -95,8 +101,76 @@ def _change_pct(amount: int, baseline: int) -> float | None:
     return round((amount - baseline) / baseline * 100, 1)
 
 
-def _analyze(db: Session) -> dict:
-    """모든 날짜 × 대분류를 판단합니다. 올린 데이터가 작아서 매번 새로 계산해도 충분히 빠릅니다."""
+def _quantities_by_date(db: Session) -> dict[date, dict[str, int]]:
+    rows = db.execute(
+        select(DailySale.sales_date, DailySale.category, func.sum(DailySale.quantity)).group_by(
+            DailySale.sales_date, DailySale.category
+        )
+    ).all()
+    result: dict[date, dict[str, int]] = {}
+    for sales_date, category, quantity in rows:
+        result.setdefault(sales_date, {})[category] = int(quantity)
+    return result
+
+
+KIND_BASIS = {
+    "daily": "요일 효과를 뺀 최근 흐름",
+    "trend": "최근 며칠의 흐름(요일 효과 제외)",
+    "streak": "최근 팔린 날 비율",
+    "big_sale": "이 분류의 지난 판매 기록",
+}
+
+
+def kind_text(kind: str, direction: str) -> str | None:
+    """화면에 붙이는 한 줄 설명. 하루 비교(daily)에는 붙이지 않습니다. 원인은 단정하지 않습니다."""
+    if kind == "trend":
+        return "며칠째 평소보다 계속 높아요" if direction == "high" else "며칠째 평소보다 계속 낮아요"
+    if kind == "streak":
+        return "평소엔 잘 안 팔리던 분류가 자주 팔려요" if direction == "high" else "평소 팔리던 분류가 며칠째 안 팔려요"
+    if kind == "big_sale":
+        return "이 분류로는 평소보다 훨씬 많이 팔렸어요"
+    return None
+
+
+_extended_cache: dict[tuple, list] = {}  # (DB 주소, 민감도, 자료 서명) -> 새 방법의 알림 목록 (계산이 무거워서 자료가 같으면 다시 하지 않음)
+
+
+def _data_signature(db: Session, uploads: list[SalesUpload]) -> tuple:
+    count, amount_sum, quantity_sum = db.execute(
+        select(func.count(), func.coalesce(func.sum(DailySale.amount), 0), func.coalesce(func.sum(DailySale.quantity), 0))
+    ).one()
+    return (tuple((u.sales_date, u.cutoff_hour, u.uploaded_at) for u in uploads), int(count), int(amount_sum), int(quantity_sum))
+
+
+def _extended_alarms(db: Session, uploads, amounts, categories, level: str) -> list[tuple[str, date, dict]]:
+    key = (str(db.get_bind().url), level, _data_signature(db, uploads))
+    cached = _extended_cache.get(key)
+    if cached is not None:
+        return cached
+    quantities = _quantities_by_date(db)
+    groups: dict[int, list[SalesUpload]] = defaultdict(list)
+    for upload in uploads:
+        groups[upload.cutoff_hour].append(upload)  # 같은 시각까지의 매출끼리만 비교
+    alarms: list[tuple[str, date, dict]] = []
+    for group in groups.values():
+        dates = [u.sales_date for u in group]
+        group_amounts = {c: [amounts.get(d, {}).get(c, 0) for d in dates] for c in categories}
+        group_quantities = {c: [quantities.get(d, {}).get(c, 0) for d in dates] for c in categories}
+        for category, cells in detection.detect(dates, group_amounts, group_quantities, level).items():
+            alarms.extend((category, dates[i], alarm) for i, alarm in cells.items())
+    if len(_extended_cache) >= 8:
+        _extended_cache.clear()
+    _extended_cache[key] = alarms
+    return alarms
+
+
+LEGACY = "legacy"  # 예전 방식 그대로(하루 비교만, 점수 기준은 SCORE_THRESHOLD). 시연 데이터 평가 도구가 씁니다.
+
+
+def _analyze(db: Session, level: str | None = None) -> dict:
+    """모든 날짜 × 대분류를 판단합니다. level 이 없으면 설정의 민감도를 씁니다. 올린 데이터가 작아서 매번 계산해도 충분히 빠릅니다."""
+    level = get_sensitivity(db) if level is None else level
+    threshold = None if level == LEGACY else detection.LEVELS[level]["old"]
     uploads = list(db.scalars(select(SalesUpload).order_by(SalesUpload.sales_date)))
     amounts = _amounts_by_date(db)
     categories = sorted({c for per_day in amounts.values() for c in per_day})
@@ -124,12 +198,26 @@ def _analyze(db: Session) -> dict:
             }
             if len(earlier) >= MIN_SAME_WEEKDAY_DAYS:
                 history = [amounts.get(u.sales_date, {}).get(category, 0) for u in earlier]
-                verdict = judge(amount, history)
+                verdict = judge(amount, history, threshold)
                 entry["typical"], entry["sparse"] = baseline_of(history)
                 if verdict:
                     verdict["change_pct"] = _change_pct(amount, verdict["baseline"])
+                    verdict["kind"] = "daily"
                     entry["anomaly"] = verdict
             judged[(category, upload.sales_date)] = entry
+
+    if level != LEGACY:
+        for category, sales_date, alarm in _extended_alarms(db, uploads, amounts, categories, level):
+            entry = judged[(category, sales_date)]
+            if entry["anomaly"] is None:  # 하루 비교가 이미 알렸다면 그대로 둡니다
+                entry["anomaly"] = {
+                    "direction": alarm["direction"],
+                    "baseline": alarm["expected"],
+                    "score": alarm["score"],
+                    "change_pct": _change_pct(entry["amount"], alarm["expected"]),
+                    "kind": alarm["kind"],
+                    "new_method": True,  # 하루 비교가 아니라 detection.py 가 알린 것 (비교 기준 설명이 다름)
+                }
 
     return {
         "uploads": uploads,
@@ -187,6 +275,10 @@ def build_anomaly_list(db: Session) -> dict:
                     "direction": anomaly["direction"],
                     "cutoff_hour": upload.cutoff_hour,
                     "weeks_used": entry["weeks_used"],
+                    "score": anomaly.get("score"),  # AI 점검의 우선순위 계산용 (계산은 그대로, 값만 내보냄)
+                    "kind": anomaly.get("kind", "daily"),
+                    "kind_text": kind_text(anomaly.get("kind", "daily"), anomaly["direction"]),
+                    "basis": KIND_BASIS[anomaly["kind"]] if anomaly.get("new_method") else f"같은 요일 {entry['weeks_used']}번의 중간값",
                 }
             )
         if flagged:
@@ -222,6 +314,10 @@ def build_series(db: Session, category: str) -> dict:
                         "baseline": anomaly["baseline"],
                         "change_pct": anomaly["change_pct"],
                         "reviewed": (category, upload.sales_date) in data["reviewed"],
+                        "kind": anomaly.get("kind", "daily"),
+                        "kind_text": kind_text(anomaly.get("kind", "daily"), anomaly["direction"]),
+                        "new_method": bool(anomaly.get("new_method")),
+                        "basis": KIND_BASIS[anomaly["kind"]] if anomaly.get("new_method") else None,
                     }
                     if anomaly
                     else None
@@ -245,15 +341,29 @@ REASONS = {
     "data_check": "데이터 확인 필요",
     "other": "기타",
     "unknown": "모르겠어요",
+    "none": "특이사항 없음",  # "정상"이 아니라 "점주가 확인해 특이사항 없음으로 답함"
 }
+SOLO_REASONS = ("none", "unknown")  # 다른 선택과 함께 저장할 수 없는 값
+STORE = "__store__"  # 분류에 속하지 않는 점포 전체 기록용 예약 분류 이름
 MAX_MEMO_LENGTH = 300
+MAX_RAW_TEXT = 500
+MAX_TIME_HINT = 30
+SOURCES = ("form", "ai")
 
 
 def _record_of(record: ReviewedAnomaly | None) -> dict | None:
     if record is None:
         return None
     keys = [k for k in record.reasons.split(",") if k in REASONS]
-    return {"reasons": keys, "reason_labels": [REASONS[k] for k in keys], "memo": record.memo}
+    return {
+        "reasons": keys,
+        "reason_labels": [REASONS[k] for k in keys],
+        "memo": record.memo,
+        "source": record.source or "form",
+        "raw_text": record.raw_text or "",
+        "time_hint": record.time_hint or "",
+        "ai_edited": bool(record.ai_edited),
+    }
 
 
 class ReviewBody(BaseModel):
@@ -261,6 +371,10 @@ class ReviewBody(BaseModel):
     dates: list[date]
     reasons: list[str] = []
     memo: str = ""
+    source: str = "form"  # form(직접 선택) | ai(AI가 정리한 초안을 점주가 확인)
+    raw_text: str = ""
+    time_hint: str = ""
+    ai_edited: bool = False
 
 
 class UnreviewBody(BaseModel):
@@ -283,6 +397,22 @@ def reviewed_list(db: Session = Depends(get_db)):
     data = _analyze(db)
     items = []
     for (category, sales_date), record in data["reviewed"].items():
+        if category == STORE:  # 점포 전체: 금액 비교 없이 날짜와 기록만
+            items.append(
+                {
+                    "category": STORE,
+                    "category_label": "점포 전체",
+                    **_day(sales_date),
+                    "amount": None,
+                    "baseline": None,
+                    "change_pct": None,
+                    "direction": None,
+                    "reviewed_at": record.reviewed_at.isoformat() + "Z",
+                    "weeks_used": None,
+                    **_record_of(record),
+                }
+            )
+            continue
         entry = data["judged"].get((category, sales_date))
         if entry is None:
             continue
@@ -314,8 +444,22 @@ def review(body: ReviewBody, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail={"code": "unknown_date"})
     unknown = [r for r in body.reasons if r not in REASONS]
     memo = body.memo.strip()
-    if unknown or len(memo) > MAX_MEMO_LENGTH:
+    raw_text = body.raw_text.strip()
+    time_hint = body.time_hint.strip()
+    solo_mixed = any(r in body.reasons for r in SOLO_REASONS) and len(set(body.reasons)) > 1
+    if (
+        unknown
+        or solo_mixed
+        or len(memo) > MAX_MEMO_LENGTH
+        or len(raw_text) > MAX_RAW_TEXT
+        or len(time_hint) > MAX_TIME_HINT
+        or body.source not in SOURCES
+    ):
         raise HTTPException(status_code=422, detail={"code": "invalid_record"})
+    if body.source == "ai":  # AI 초안은 실제 분류(또는 점포 전체)에만 저장할 수 있습니다
+        known_categories = {c for (c,) in db.execute(select(DailySale.category).distinct())} | {STORE}
+        if body.category not in known_categories:
+            raise HTTPException(status_code=422, detail={"code": "unknown_category"})
     reasons = ",".join(dict.fromkeys(body.reasons))  # 중복 제거, 순서 유지
     try:
         existing = {
@@ -330,10 +474,23 @@ def review(body: ReviewBody, db: Session = Depends(get_db)):
         for d in set(body.dates):
             row = existing.get(d)
             if row is None:
-                db.add(ReviewedAnomaly(category=body.category, sales_date=d, reviewed_at=now, reasons=reasons, memo=memo))
+                db.add(
+                    ReviewedAnomaly(
+                        category=body.category,
+                        sales_date=d,
+                        reviewed_at=now,
+                        reasons=reasons,
+                        memo=memo,
+                        source=body.source,
+                        raw_text=raw_text,
+                        time_hint=time_hint,
+                        ai_edited=body.ai_edited,
+                    )
+                )
             elif body.reasons or memo:
                 # 이미 기록된 날짜를 다시 저장하면 내용만 고칩니다. (선택·메모 없이 다시 눌러도 기존 내용은 지우지 않습니다)
                 row.reasons, row.memo, row.reviewed_at = reasons, memo, now
+                row.source, row.raw_text, row.time_hint, row.ai_edited = body.source, raw_text, time_hint, body.ai_edited
         db.commit()
     except SQLAlchemyError:
         db.rollback()

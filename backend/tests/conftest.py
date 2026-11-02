@@ -4,6 +4,7 @@
 """
 import pytest
 
+from app import config
 from app.db import Base, make_engine
 from app.main import create_app
 
@@ -13,12 +14,17 @@ def _never_touch_real_database(monkeypatch):
     # backend/.env 가 불러와져 있어도 시험이 실제 DB에 닿지 않도록 DB 설정을 비웁니다.
     for key in ["DATABASE_URL", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD", "DB_SSLMODE"]:
         monkeypatch.delenv(key, raising=False)
+    # AI도 마찬가지: 실제 backend/.env 의 OpenAI 키를 시험이 읽거나 쓰지 않게 합니다. (시험은 가짜 LLM만 씁니다)
+    for key in ["OPENAI_API_KEY", "OPENAI_MODEL", "AI_ENABLED", "AI_TIMEOUT_SECONDS", "AI_MAX_RETRIES",
+                "AI_MONTHLY_CALL_LIMIT", "AI_BRIEFING_MAX_ITEMS", "AI_NOTE_MAX_CHARS"]:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(config, "AI_ENV_FILE", None)
 
 
-def build_app(tmp_path, name="test.db"):
+def build_app(tmp_path, name="test.db", llm=None):
     """테이블이 만들어진 임시 SQLite 위에서 앱을 만듭니다. (실제 서비스는 Alembic으로 만듭니다)"""
     url = f"sqlite:///{tmp_path / name}"
     engine = make_engine(url)
     Base.metadata.create_all(engine)
     engine.dispose()
-    return create_app(database_url=url)
+    return create_app(database_url=url, llm=llm)

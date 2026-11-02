@@ -4,6 +4,7 @@ import { request } from "../api.js";
 import { Card } from "../components/Card.jsx";
 import { DiffLine } from "../components/Change.jsx";
 import { shortDate, won } from "../format.js";
+import { categoryLabel, STORE } from "../reasons.js";
 
 export default function Reviewed() {
   const [items, setItems] = useState(null);
@@ -64,23 +65,42 @@ export default function Reviewed() {
             <ul className="day-list">
               {items.map((item) => (
                 <li key={`${item.category}|${item.date}`} className="day-row">
-                  <Link
-                    className="record-link"
-                    to={`/category/${encodeURIComponent(item.category)}?date=${item.date}`}
-                  >
+                  {item.category === STORE ? (
+                    <div className="record-link">
                     <span className="day-top">
                       <span className="day-date">
-                        <strong>{item.category}</strong> · {shortDate(item.date)}
+                        <strong>{categoryLabel(item.category)}</strong> · {shortDate(item.date)}
                       </span>
-                      <span className="day-amount">{won(item.amount)}</span>
+                      {item.amount != null && <span className="day-amount">{won(item.amount)}</span>}
                     </span>
                     {item.baseline != null && (
                       <DiffLine diff={item.amount - item.baseline} pct={item.change_pct} basis="비교 기준" />
                     )}
-                  </Link>
-                  {item.reason_labels?.length > 0 && (
-                    <p className="record-reasons">점주 기록: {item.reason_labels.join(", ")}</p>
+                    </div>
+                  ) : (
+                    <Link
+                      className="record-link"
+                      to={`/category/${encodeURIComponent(item.category)}?date=${item.date}`}
+                    >
+                    <span className="day-top">
+                      <span className="day-date">
+                        <strong>{categoryLabel(item.category)}</strong> · {shortDate(item.date)}
+                      </span>
+                      {item.amount != null && <span className="day-amount">{won(item.amount)}</span>}
+                    </span>
+                    {item.baseline != null && (
+                      <DiffLine diff={item.amount - item.baseline} pct={item.change_pct} basis="비교 기준" />
+                    )}
+                    </Link>
                   )}
+                  {item.reason_labels?.length > 0 && (
+                    <p className="record-reasons">
+                      점주 기록: {item.reason_labels.join(", ")}
+                      {item.time_hint && ` · ${item.time_hint}`}
+                      {item.source === "ai" && " · AI가 정리, 점주가 확인"}
+                    </p>
+                  )}
+                  {item.source === "ai" && item.raw_text && <p className="record-memo">&ldquo;{item.raw_text}&rdquo;</p>}
                   {item.memo && <p className="record-memo">&ldquo;{item.memo}&rdquo;</p>}
                   <div className="day-action">
                     <button
