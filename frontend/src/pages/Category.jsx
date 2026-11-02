@@ -4,8 +4,6 @@ import { request } from "../api.js";
 import { BasisToggle, Card, NeedMore } from "../components/Card.jsx";
 import { DiffLine } from "../components/Change.jsx";
 import SalesChart, { ChartLegend } from "../components/SalesChart.jsx";
-import Disclosure from "../components/Disclosure.jsx";
-import NoteBox from "../components/NoteBox.jsx";
 import SimilarRecords from "../components/SimilarRecords.jsx";
 import { hourLabel, monthDay, shortDate, won } from "../format.js";
 import { REASONS, toggleReason } from "../reasons.js";
@@ -76,15 +74,6 @@ function RecordForm({ category, point, onChanged }) {
 
   return (
     <Card title="운영 상황 기록" aside={saved ? "✓ 기록됨" : null}>
-      {saved?.source === "ai" && (
-        <p className="ai-sub">
-          AI가 정리해서 점주님이 확인한 기록이에요.
-          {saved.time_hint && ` (${saved.time_hint})`}
-        </p>
-      )}
-      <Disclosure label="한마디로 남기기 (AI가 정리해 줘요)">
-        <NoteBox hintDate={point.date} hintCategory={category} onSaved={onChanged} />
-      </Disclosure>
       <form onSubmit={submit} className="record-form">
         <fieldset className="record-fieldset">
           <legend className="record-legend">당시 특이사항이 있었나요?</legend>

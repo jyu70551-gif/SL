@@ -1572,3 +1572,30 @@ a {
 .calendar-note {
   color: var(--muted, inherit);
 }
+
+.suggest-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.suggest-item {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line, rgba(128, 128, 128, 0.25));
+}
+.suggest-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.suggest-title {
+  display: block;
+  font-size: 1.05rem;
+}
+.suggest-body {
+  margin: 6px 0;
+  line-height: 1.55;
+}
+.suggest-facts {
+  margin: 8px 0;
+}

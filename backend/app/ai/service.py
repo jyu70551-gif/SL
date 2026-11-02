@@ -5,7 +5,6 @@ READY 가 아니면 모든 AI 기능은 고정 문구 모드로 동작합니다.
 """
 import hashlib
 import threading
-from collections import deque
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -18,7 +17,6 @@ from app.models import AiUsage
 KST_OFFSET = timedelta(hours=9)  # 한국은 서머타임이 없어 고정 오프셋으로 충분합니다
 CIRCUIT_FAILURES = 3
 CIRCUIT_OPEN = timedelta(minutes=10)
-NOTE_CALLS_PER_MINUTE = 6
 
 
 def month_start_utc(now_utc: datetime) -> datetime:
@@ -46,7 +44,6 @@ class AiService:
         self._open_until: datetime | None = None
         self._bad_key: str | None = None  # 인증 오류가 난 키의 지문
         self._last_error = ""
-        self._note_calls: deque[datetime] = deque()
 
     # ------------------------------------------------------------------ 설정·키
     def settings(self):
@@ -186,17 +183,6 @@ class AiService:
         if self._fail_count >= CIRCUIT_FAILURES:
             self._open_until = self._clock() + CIRCUIT_OPEN
             self._fail_count = 0
-
-    # ------------------------------------------------------------------ 점주 글 정리 속도 제한
-    def note_rate_ok(self) -> bool:
-        now = self._clock()
-        with self._lock:
-            while self._note_calls and now - self._note_calls[0] > timedelta(minutes=1):
-                self._note_calls.popleft()
-            if len(self._note_calls) >= NOTE_CALLS_PER_MINUTE:
-                return False
-            self._note_calls.append(now)
-            return True
 
 
 def config_utcnow() -> datetime:

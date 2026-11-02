@@ -1,4 +1,4 @@
-"""내일 예상 매출 (docs/plan.md Phase 7, docs/forecast-considerations.md, docs/stats-guide.md 4장).
+"""내일 예상 매출 (docs/plan.md Phase 7, docs/forecast-considerations.md, docs/stats-guide.md 3장).
 
 총매출을 로그로 바꾼 뒤 요일·장날·공휴일·방학·기온·비 온 날을 넣은 규제 회귀(릿지)로 예상합니다.
 - 자료가 적을 때 계수가 우연한 값으로 커지지 않도록 계수에 벌금을 매깁니다. 벌금의 세기는 과거 자료로 직접 고릅니다(빼고 맞혀 보기).

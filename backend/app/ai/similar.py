@@ -9,9 +9,47 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai import textfmt as t
-from app.ai.facts import past_records
-from app.anomalies import _analyze
+from app.anomalies import REASONS, _analyze
 from app.models import ReviewedAnomaly
+
+
+PAST_MEMO_CHARS = 60
+MAX_PAST = 3
+HIDDEN_LABEL_KEYS = {"none", "unknown"}  # 이전 기록 문구에는 쓰지 않습니다
+
+
+def reason_labels(reasons_csv: str, hide_generic: bool = False) -> list[str]:
+    keys = [k for k in (reasons_csv or "").split(",") if k in REASONS]
+    if hide_generic:
+        keys = [k for k in keys if k not in HIDDEN_LABEL_KEYS]
+    return [REASONS[k] for k in keys]
+
+
+def past_records(rows, analysis, category: str, before: date, direction: str) -> list[dict]:
+    """같은 분류에서 이전에 같은 방향의 변화가 있었던 날 중, 점주가 남긴 기록 (최신순 최대 3건)."""
+    found = []
+    for row in sorted((r for r in rows if r.category == category and r.sales_date < before), key=lambda r: r.sales_date, reverse=True):
+        entry = analysis["judged"].get((category, row.sales_date))
+        anomaly = entry["anomaly"] if entry else None
+        if not anomaly or anomaly["direction"] != direction:
+            continue
+        labels = reason_labels(row.reasons, hide_generic=True)
+        if not labels and not row.memo:
+            continue
+        found.append(
+            {
+                "date": row.sales_date.isoformat(),
+                "date_label": t.date_label(row.sales_date),
+                "direction": direction,
+                "labels": labels,
+                "memo": (row.memo or "")[:PAST_MEMO_CHARS],
+                "time_hint": row.time_hint or "",
+                "source": row.source or "form",
+            }
+        )
+        if len(found) == MAX_PAST:
+            break
+    return found
 
 
 def sentence(category: str, direction: str, record: dict) -> str:

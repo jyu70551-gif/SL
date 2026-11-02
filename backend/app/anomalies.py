@@ -276,7 +276,7 @@ def build_anomaly_list(db: Session) -> dict:
                     "direction": anomaly["direction"],
                     "cutoff_hour": upload.cutoff_hour,
                     "weeks_used": entry["weeks_used"],
-                    "score": anomaly.get("score"),  # AI 점검의 우선순위 계산용 (계산은 그대로, 값만 내보냄)
+                    "score": anomaly.get("score"),  # 탐지 점수 (계산은 그대로, 값만 내보냄)
                     "kind": anomaly.get("kind", "daily"),
                     "kind_text": kind_text(anomaly.get("kind", "daily"), anomaly["direction"]),
                     "basis": KIND_BASIS[anomaly["kind"]] if anomaly.get("new_method") else f"같은 요일 {entry['weeks_used']}번의 중간값",

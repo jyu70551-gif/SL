@@ -79,6 +79,9 @@ export default function MarketCard() {
       </button>
 
       {data && items.length === 0 && <p className="card-note">점포에서 {data.radius_m}m 안에 전통시장이 없어요.</p>}
+      {data && periodic.length === 0 && savedDays.length > 0 && (
+        <p className="card-note">저장된 장날이 있지만 근처 시장에서 가져온 값이 아닐 수 있어요. 맞지 않으면 아래에서 지워 주세요. AI 제안도 이 값을 쓰니까요.</p>
+      )}
 
       {periodic.length > 0 && (
         <>
@@ -118,7 +121,7 @@ export default function MarketCard() {
         </ul>
       )}
 
-      {data && periodic.length === 0 && items.length > 0 && savedDays.length > 0 && (
+      {data && periodic.length === 0 && savedDays.length > 0 && (
         <div className="button-row">
           <button type="button" className="button secondary" onClick={() => save([])} disabled={busy}>
             저장된 장날 지우기

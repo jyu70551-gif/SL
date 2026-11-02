@@ -1,4 +1,4 @@
-"""6-3: 저장된 장날·공휴일·방학이 알림 목록과 AI 사실 묶음에 '참고'로만 붙는지. 숫자와 이름은 모두 가상입니다.
+"""6-3: 저장된 장날·공휴일·방학이 알림 목록에 '참고'로만 붙는지. 숫자와 이름은 모두 가상입니다.
 2026-02-25는 수요일입니다."""
 from datetime import date
 
@@ -6,11 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import day_context
-from app.ai.facts import build_facts
-from app.ai.guard import GuardError
 from app.models import ScheduleEvent
 from tests.conftest import build_app
-from tests.test_ai_priority_guard import cand, good, run
 from tests.test_anomalies import TODAY, seed
 from tests.test_home import TEST_PASSWORD
 
@@ -60,21 +57,3 @@ def test_other_days_have_no_context(client):
     client.post("/api/settings/store", json={"market_days": [3]})
     add_event(client, "holiday", "다른날", date(2026, 3, 1))
     assert flagged_of(client)["calendar"] == []
-
-
-def test_ai_facts_context_uses_saved_values(client):
-    seed(client, JUMP)
-    client.post("/api/settings/store", json={"market_days": [25]})
-    add_event(client, "holiday", "가상공휴일", TODAY)
-    with client.app.state.session_factory() as db:
-        facts = build_facts(db)
-    item = next(c for c in facts["candidates"] if c["kind"] == "category")
-    assert item["context"] == ["수요일", "공휴일(가상공휴일)", "장날"]
-
-
-def test_guard_blocks_holiday_or_vacation_as_a_cause_but_allows_mention():
-    c = cand()
-    run({"headline": "", "items": [good(c, f"담배 {c['amount']}로 비교 기준 {c['baseline']}이에요. 공휴일과 겹쳤는지 확인해 보세요.")]}, [c])
-    for cause in ["공휴일이라서", "방학이라", "연휴 때문에"]:
-        with pytest.raises(GuardError):
-            run({"headline": "", "items": [good(c, f"담배 {c['amount']}로 비교 기준 {c['baseline']}이에요. {cause} 늘었어요.")]}, [c])

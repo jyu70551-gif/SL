@@ -1,5 +1,4 @@
 """AI 시험 공통 도구. 시험은 실제 OpenAI를 부르지 않고 가짜 LLM만 씁니다. 숫자는 모두 가상입니다."""
-import json
 from datetime import date
 
 import pytest
@@ -38,36 +37,6 @@ class FakeLLM:
         return LLMResult(data=item, input_tokens=120, output_tokens=60, model=self.model_name)
 
 
-def compliant_briefing(system, user):
-    """사실 묶음의 항목마다 규칙을 지킨 점검을 만들어 주는 가짜 응답."""
-    payload = json.loads(user)
-    items = [
-        {
-            "id": it["id"],
-            "summary": f"{it['name']} {it['amount']}로 비교 기준 {it['baseline']}과 차이가 있어요.",
-            "question": "확인해 보셨나요?",
-            "checks": ["기록 확인하기"],
-        }
-        for it in payload["items"]
-    ]
-    return {"headline": "먼저 확인해 보세요.", "items": items}
-
-
-def note_response(**override):
-    base = {
-        "status": "ok",
-        "category": "담배",
-        "date": TODAY.isoformat(),
-        "situations": ["stock"],
-        "detail": "입고가 늦었어요",
-        "time_hint": None,
-        "question": None,
-        "confidence": "high",
-    }
-    base.update(override)
-    return base
-
-
 def seed_spike(client, today_values=None):
     """수요일 4번의 평소 + 오늘(2/25) 담배 급증. 점검 항목이 생기는 데이터."""
     for day, values in zip(WEDNESDAYS, USUAL):
@@ -100,12 +69,4 @@ def make_client(tmp_path, monkeypatch):
         client.__exit__(None, None, None)
 
 
-def get_briefing(client):
-    """첫 조회는 준비 중일 수 있어(백그라운드 생성) 한 번 더 조회합니다."""
-    first = client.get("/api/ai/briefing").json()
-    if first.get("status") == "pending":
-        return client.get("/api/ai/briefing").json()
-    return first
-
-
-__all__ = ["AiError", "FakeLLM", "compliant_briefing", "note_response", "seed_spike", "seed_quiet", "make_client", "get_briefing", "TODAY"]
+__all__ = ["AiError", "FakeLLM", "seed_spike", "seed_quiet", "make_client", "TODAY"]

@@ -140,32 +140,44 @@ def _base_time(now: datetime) -> tuple[date, str]:
     return shifted.date() - timedelta(days=1), "2300"
 
 
-def fetch_forecast(get, key: str, lat: float, lon: float, target: date, now: datetime | None = None) -> dict | None:
-    """target 날짜의 예보 {temp(시간별 평균 ℃), rain_mm, pop(강수확률 최대 %)}. 예보 범위 밖이면 None."""
+def forecast_days(get, key: str, lat: float, lon: float, targets: list[date], now: datetime | None = None) -> dict[date, dict]:
+    """여러 날의 예보를 한 번에 받습니다. {날짜: {temp(시간별 평균 ℃), min_temp, max_temp, rain_mm, pop(강수확률 최대 %)}}.
+    예보 범위 밖인 날은 결과에 없습니다."""
     if not key:
         raise official.OfficialError("no_key")
     base_day, base_time = _base_time(now or datetime.now())
     nx, ny = to_grid(lat, lon)
     data = get(FORECAST_URL, {"serviceKey": key, "dataType": "JSON", "pageNo": 1, "numOfRows": 1000, "base_date": base_day.strftime("%Y%m%d"),
                               "base_time": base_time, "nx": nx, "ny": ny})
-    wanted = target.strftime("%Y%m%d")
-    temps, rain, pops = [], 0.0, []
+    wanted = {t.strftime("%Y%m%d"): t for t in targets}
+    temps: dict[str, list[float]] = {k: [] for k in wanted}
+    rain = {k: 0.0 for k in wanted}
+    pops: dict[str, list[float]] = {k: [] for k in wanted}
     for item in _items(data):
-        if item.get("fcstDate") != wanted:
+        day = item.get("fcstDate")
+        if day not in wanted:
             continue
         category, value = item.get("category"), str(item.get("fcstValue", ""))
         try:
             if category == "TMP":
-                temps.append(float(value))
+                temps[day].append(float(value))
             elif category == "PCP":
-                rain += parse_rain(value)
+                rain[day] += parse_rain(value)
             elif category == "POP":
-                pops.append(float(value))
+                pops[day].append(float(value))
         except ValueError:
             continue
-    if not temps:
-        return None
-    return {"temp": sum(temps) / len(temps), "rain_mm": rain, "pop": max(pops) if pops else None}
+    out = {}
+    for key_, target in wanted.items():
+        if temps[key_]:
+            t = temps[key_]
+            out[target] = {"temp": sum(t) / len(t), "min_temp": min(t), "max_temp": max(t), "rain_mm": rain[key_], "pop": max(pops[key_]) if pops[key_] else None}
+    return out
+
+
+def fetch_forecast(get, key: str, lat: float, lon: float, target: date, now: datetime | None = None) -> dict | None:
+    """target 날짜의 예보. 예보 범위 밖이면 None."""
+    return forecast_days(get, key, lat, lon, [target], now).get(target)
 
 
 # ---------------------------------------------------------------- 설정 화면용 주소

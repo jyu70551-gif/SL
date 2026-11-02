@@ -54,6 +54,10 @@ def fetch_json(url: str, params: dict) -> dict:
 
 
 def atpt_code_of(education_office_name: str) -> str | None:
+    """교육청 이름에서 NEIS 시·도교육청 코드. 알 수 없으면 None(그러면 교육청을 지정하지 않고 학교를 찾습니다).
+    "전남광주통합특별시교육청"처럼 두 지역이 합쳐진 이름은 광주(F10)와 전남(Q10)을 구분할 수 없어서 None 입니다."""
+    if "통합" in education_office_name:
+        return None
     for word, code in ATPT_CODES:
         if word in education_office_name:
             return code
@@ -219,19 +223,34 @@ def _neis_rows(data: dict, service: str) -> list[dict]:
     return parts[1].get("row", []) if len(parts) > 1 else []
 
 
-def neis_school_code(get, key: str, atpt: str, name: str, address: str) -> str | None:
-    """학교 위치 자료의 학교를 NEIS 학교 코드로 연결합니다. 같은 이름이 여럿이면 도로명주소가 같은 학교만 인정합니다."""
+def neis_school_code(get, key: str, atpt: str | None, name: str, address: str) -> tuple[str, str] | None:
+    """학교 위치 자료의 학교를 NEIS의 (교육청 코드, 학교 코드)로 연결합니다. 못 찾으면 None.
+    1) 교육청 코드를 알면 그 안에서 찾습니다. 같은 이름이 여럿이면 도로명주소가 같은 학교만 인정하고, 하나뿐이면 그것을 씁니다.
+    2) 교육청 코드를 모르거나 1)에서 못 찾으면 교육청을 지정하지 않고 전국에서 찾습니다. 이때는 이름이 같은 다른 지역 학교와
+       섞이지 않게 **도로명주소가 같은 학교만** 인정합니다. (교육청 이름이 합쳐졌거나 바뀐 경우에도 찾기 위해서입니다)"""
     if not key:
         raise OfficialError("no_key")
-    data = get(NEIS_SCHOOL_INFO_URL, {"KEY": key, "Type": "json", "pIndex": 1, "pSize": 20, "ATPT_OFCDC_SC_CODE": atpt, "SCHUL_NM": name})
-    rows = _neis_rows(data, "schoolInfo")
     norm = lambda s: "".join(str(s).split())
-    same_address = [r for r in rows if norm(r.get("ORG_RDNMA", "")) == norm(address)]
-    if same_address:
-        return same_address[0]["SD_SCHUL_CODE"]
-    if len(rows) == 1:
-        return rows[0]["SD_SCHUL_CODE"]
-    return None
+
+    def search(code: str | None) -> list[dict]:
+        params = {"KEY": key, "Type": "json", "pIndex": 1, "pSize": 100, "SCHUL_NM": name}
+        if code:
+            params["ATPT_OFCDC_SC_CODE"] = code
+        return _neis_rows(get(NEIS_SCHOOL_INFO_URL, params), "schoolInfo")
+
+    def pick(rows: list[dict], allow_single: bool) -> tuple[str, str] | None:
+        same = [r for r in rows if norm(r.get("ORG_RDNMA", "")) == norm(address)]
+        if same:
+            return same[0]["ATPT_OFCDC_SC_CODE"], same[0]["SD_SCHUL_CODE"]
+        if allow_single and len(rows) == 1:
+            return rows[0]["ATPT_OFCDC_SC_CODE"], rows[0]["SD_SCHUL_CODE"]
+        return None
+
+    if atpt:
+        found = pick(search(atpt), allow_single=True)
+        if found:
+            return found
+    return pick(search(None), allow_single=False)
 
 
 def fetch_schedule(get, key: str, atpt: str, school_code: str, start: date, end: date) -> list[dict]:

@@ -28,7 +28,7 @@ from sqlalchemy import select  # noqa: E402
 
 from app import config  # noqa: E402
 from app.db import Base, make_engine, make_session_factory  # noqa: E402
-from app.models import DailySale, MarketDay, ReviewedAnomaly, SalesUpload, WeatherDaily  # noqa: E402
+from app.models import DailySale, ReviewedAnomaly, SalesUpload, WeatherDaily  # noqa: E402
 from app.sales_file import parse_sales_csv  # noqa: E402
 
 DEFAULT_SOURCE = BACKEND.parent / ".sl-history" / "데이터_가져오기" / "csv"
@@ -44,7 +44,7 @@ ASSUMED = {
     "holiday_multiplier_long": 0.45,  # 설·추석 연휴
     "presence_multiplier_long_holiday": 0.7,  # 연휴에는 팔리는 분류 수도 줄어듦
     "shrink_real_weekday_effect": 0.5,
-    # 날씨 효과 (--weather 일 때만). 실제 23일에서는 확인하지 못한 값이라 상식에 따른 가정입니다. (docs/stats-guide.md 4장)
+    # 날씨 효과 (--weather 일 때만). 실제 23일에서는 확인하지 못한 값이라 상식에 따른 가정입니다. (docs/stats-guide.md 3장)
     "temperature_effect_per_degree": 0.006,  # 기온 1도당 +0.6% (기준 12도. 더우면 음료·아이스크림이 늘고 추우면 사람이 덜 나옴)
     "temperature_reference": 12.0,
     "rain_day_multiplier": 0.92,  # 비 온 날(일 강수량 1mm 이상)
@@ -339,7 +339,6 @@ def build(source: Path, out: Path, start: date, seed: int, demo: bool = False, w
 
         if weather:  # 앱이 학습에 쓰는 날씨 표 (실제 관측값. 매출만 가짜)
             db.add_all(WeatherDaily(day=d, station=WEATHER_STATION[1], avg_temp=t, rain_mm=r) for d, (t, r) in sorted(weather.items()))
-            db.add_all(MarketDay(day=d) for d in range(1, 32) if d % 5 == 3)  # 가짜 매출의 장날 효과와 같은 날짜를 앱에도 저장해 둡니다
 
         # 점주가 남긴 것처럼 보이는 기록 (일주일보다 오래된 이상 중 일부). 가짜입니다.
         notes = []

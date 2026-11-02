@@ -2,14 +2,13 @@
 import base64
 import binascii
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app import auth
-from app.ai import briefing
 from app.auth import get_db, require_auth
 from app.models import DailySale, ReviewedAnomaly, SalesUpload
 from app.sales_file import FileProblems, parse_sales_csv
@@ -28,7 +27,7 @@ class UploadBody(BaseModel):
 
 @router.post("")
 def upload_sales_file(
-    body: UploadBody, request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+    body: UploadBody, request: Request, db: Session = Depends(get_db)
 ):
     if body.cutoff_hour is None or not 0 <= body.cutoff_hour <= 23:
         raise HTTPException(status_code=422, detail={"code": "invalid_hour"})
@@ -90,11 +89,6 @@ def upload_sales_file(
     except SQLAlchemyError:
         db.rollback()
         raise HTTPException(status_code=500, detail={"code": "save_failed"})
-
-    # 새 데이터로 "오늘의 점검"을 다시 만듭니다. (응답 뒤에 처리되며, 실패해도 업로드는 성공입니다)
-    ai = getattr(request.app.state, "ai", None)
-    if ai is not None:
-        background_tasks.add_task(briefing.ensure_for_latest, request.app.state.session_factory, ai)
 
     return {
         "date": parsed.sales_date.isoformat(),

@@ -79,25 +79,51 @@ def test_education_office_name_gives_the_neis_region_code():
     assert official.atpt_code_of("서울특별시교육청") == "B10"
     assert official.atpt_code_of("충청북도교육청") == "M10" and official.atpt_code_of("경상남도교육청") == "S10"
     assert official.atpt_code_of("알수없는교육청") is None
+    # 지역이 합쳐진 이름은 광주(F10)와 전남(Q10)을 구분할 수 없어서 코드를 정하지 않습니다 (이전에는 "광주"만 보고 F10으로 잘못 읽었음)
+    assert official.atpt_code_of("전남광주통합특별시교육청") is None
+    assert official.atpt_code_of("광주광역시교육청") == "F10" and official.atpt_code_of("전라남도교육청") == "Q10"
 
 
 # ---------------------------------------------------------------- NEIS 학교 연결
 def neis_info(rows):
+    for r in rows:
+        r.setdefault("ATPT_OFCDC_SC_CODE", "J10")
     return {"schoolInfo": [{"head": [{"list_total_count": len(rows)}, {"RESULT": {"CODE": "INFO-000"}}]}, {"row": rows}]}
 
 
 def test_neis_code_prefers_the_school_with_the_same_road_address():
     rows = [{"SD_SCHUL_CODE": "111", "ORG_RDNMA": "가상도 가상시 다른길 5"}, {"SD_SCHUL_CODE": "222", "ORG_RDNMA": "가상도  가상시 같은길 1"}]
-    assert official.neis_school_code(lambda u, p: neis_info(rows), "k", "J10", "같은학교", "가상도 가상시 같은길 1") == "222"
+    assert official.neis_school_code(lambda u, p: neis_info(rows), "k", "J10", "같은학교", "가상도 가상시 같은길 1") == ("J10", "222")
 
 
 def test_neis_code_accepts_a_single_match_and_refuses_an_ambiguous_one():
     one = [{"SD_SCHUL_CODE": "111", "ORG_RDNMA": "주소가 조금 다름"}]
     two = one + [{"SD_SCHUL_CODE": "222", "ORG_RDNMA": "또 다른 주소"}]
-    assert official.neis_school_code(lambda u, p: neis_info(one), "k", "J10", "학교", "가상도 가상시 길 1") == "111"
+    assert official.neis_school_code(lambda u, p: neis_info(one), "k", "J10", "학교", "가상도 가상시 길 1") == ("J10", "111")
     assert official.neis_school_code(lambda u, p: neis_info(two), "k", "J10", "학교", "가상도 가상시 길 1") is None
     nothing = {"RESULT": {"CODE": "INFO-200", "MESSAGE": "해당하는 데이터가 없습니다."}}
     assert official.neis_school_code(lambda u, p: nothing, "k", "J10", "학교", "가상도 가상시 길 1") is None
+
+
+def test_neis_code_is_found_without_the_education_office_when_the_office_is_unknown_or_wrong():
+    """교육청 이름이 합쳐졌거나 바뀌어도, 교육청을 지정하지 않고 도로명주소가 같은 학교를 찾아 그 학교의 교육청 코드를 씁니다."""
+    calls = []
+
+    def get(url, params):
+        calls.append(params.get("ATPT_OFCDC_SC_CODE"))
+        if params.get("ATPT_OFCDC_SC_CODE") == "F10":
+            return {"RESULT": {"CODE": "INFO-200", "MESSAGE": "해당하는 데이터가 없습니다."}}  # 잘못 고른 광주 교육청에는 없음
+        rows = [{"SD_SCHUL_CODE": "7140245", "ATPT_OFCDC_SC_CODE": "Q10", "ORG_RDNMA": "전남광주통합특별시 순천시 삼산로 104"},
+                {"SD_SCHUL_CODE": "999", "ATPT_OFCDC_SC_CODE": "B10", "ORG_RDNMA": "서울특별시 어딘가 1"}]
+        return neis_info(rows)
+
+    address = "전남광주통합특별시 순천시 삼산로 104"
+    assert official.neis_school_code(get, "k", None, "순천효산고등학교", address) == ("Q10", "7140245")  # 코드를 몰라도 찾음
+    assert official.neis_school_code(get, "k", "F10", "순천효산고등학교", address) == ("Q10", "7140245")  # 잘못 골라도 다시 찾음
+    assert calls == [None, "F10", None]
+    # 교육청을 지정하지 않을 때는 이름만 같은 다른 지역 학교를 받아들이지 않습니다
+    one_other = {"schoolInfo": [{"head": []}, {"row": [{"SD_SCHUL_CODE": "1", "ATPT_OFCDC_SC_CODE": "B10", "ORG_RDNMA": "서울특별시 어딘가 1"}]}]}
+    assert official.neis_school_code(lambda u, p: one_other, "k", None, "순천효산고등학교", address) is None
 
 
 def test_neis_error_codes_raise_instead_of_pretending_there_is_no_data():

@@ -89,11 +89,11 @@ def preview_vacations(body: PreviewBody, request: Request, db: Session = Depends
         entry = {"school_id": school_id, "name": place["name"], "kind": place["kind"], "status": "ok", "periods": []}
         atpt = official.atpt_code_of(place["edu_office"])
         try:
-            code = official.neis_school_code(get, neis_key, atpt, place["name"], place["address"]) if atpt else None
-            if code is None:
+            found = official.neis_school_code(get, neis_key, atpt, place["name"], place["address"])
+            if found is None:
                 entry["status"] = "no_code"  # NEIS에서 이 학교를 찾지 못함 → 점주가 직접 입력
             else:
-                for period in official.vacation_periods(official.fetch_schedule(get, neis_key, atpt, code, start, end)):
+                for period in official.vacation_periods(official.fetch_schedule(get, neis_key, found[0], found[1], start, end)):
                     name = _event_name(place["name"], period["label"])
                     entry["periods"].append({**period, "already_saved": (name, period["start_date"], period["end_date"]) in saved})
                 if not entry["periods"]:
