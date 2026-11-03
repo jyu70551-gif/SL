@@ -42,6 +42,21 @@ def test_store_survey_marks_partial_when_there_are_more_than_pages(monkeypatch):
     assert got["partial"] and got["convenience"] == 0 and got["total"] == 9
 
 
+def test_store_survey_treats_no_data_code_as_zero_stores_not_failure():
+    """시골처럼 반경 안에 상가가 없으면 API가 03(NODATA_ERROR)을 돌려줍니다. 실패가 아니라 0곳입니다."""
+    got = area.stores_survey(lambda url, params: {"header": {"resultCode": "03", "resultMsg": "NODATA_ERROR"}, "body": {}}, "k", 36.2, 126.7)
+    assert got["total"] == 0 and got["convenience"] == 0 and got["groups"] == [] and not got["partial"]
+
+
+def test_facts_say_no_stores_found_not_that_the_lookup_failed(setup, monkeypatch):
+    monkeypatch.setenv("STORE_API_KEY", "fake-store")
+    client = setup(FakeLLM())
+    client.app.state.official_get = dispatch(store=lambda url, params: {"header": {"resultCode": "03", "resultMsg": "NODATA_ERROR"}, "body": {}}, sgis=sgis_get())
+    facts = facts_of(client)
+    assert "조회된 상가가 없어요" in facts["stores"]["text"] and "조회된 편의점이 없어요" in facts["stores:cvs"]["text"]
+    assert "가져오지 못했어요" not in facts["stores"]["text"]
+
+
 @pytest.mark.parametrize("data", [{"header": {"resultCode": "99"}, "body": {}}, {"oops": 1}])
 def test_store_survey_errors_become_official_errors(data):
     with pytest.raises(OfficialError):

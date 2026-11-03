@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import official
+from app.asos_stations import STATIONS
 from app.auth import get_db, require_auth
 from app.models import SalesUpload, WeatherDaily
 from app.schools import _get, _key
@@ -25,17 +26,9 @@ FORECAST_URL = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVila
 RAIN_DAY_MM = 1.0  # 하루 강수량이 이 값 이상이면 "비 온 날"
 ASOS_PAGE = 900
 
-# 수도권 ASOS 관측소 (지점번호, 이름, 위도, 경도). 좌표는 근사값이고, 점포와 가장 가까운 곳을 고르는 데에만 씁니다.
-STATIONS = [
-    (108, "서울", 37.5714, 126.9658),
-    (112, "인천", 37.4777, 126.6249),
-    (119, "수원", 37.2723, 126.9853),
-    (201, "강화", 37.7074, 126.4463),
-    (202, "양평", 37.4886, 127.4946),
-    (203, "이천", 37.2640, 127.4842),
-    (98, "동두천", 37.9019, 127.0607),
-    (99, "파주", 37.8859, 126.7665),
-]
+# 전국 ASOS 관측소 97곳은 asos_stations.py 에 있습니다. (출처와 확인 방법도 거기에 적혀 있습니다)
+# 가장 가까운 관측소가 이보다 멀면 그 날씨는 점포의 날씨와 많이 다를 수 있어 쓰지 않습니다. (제 판단이고 공개 자료로 정한 값이 아닙니다. docs/stats-guide.md)
+MAX_STATION_KM = 50.0
 
 
 def nearest_station(lat: float, lon: float) -> tuple[tuple, float]:
@@ -86,6 +79,8 @@ def sync_observed(db: Session, get, key: str, lat: float, lon: float, today: dat
     """빠진 날의 관측 날씨를 받아 저장합니다. 이미 저장된 날은 건드리지 않습니다."""
     today = today or date.today()
     station, km = nearest_station(lat, lon)
+    if km > MAX_STATION_KM:  # 너무 멀면 가져오지 않습니다. 모형은 날씨 없이 예상합니다.
+        return {"added": 0, "asked": 0, "station": station[1], "distance_km": round(km, 1), "too_far": True}
     todo = missing_days(db, today - timedelta(days=1))
     added = 0
     if todo:
@@ -200,7 +195,8 @@ def read_weather(db: Session = Depends(get_db)):
     if location is None:
         return {**base, "status": "no_location", "station": None}
     station, km = nearest_station(*location)
-    return {**base, "status": "ready" if _key("WEATHER_PAST_API_KEY") else "no_key", "station": {"name": station[1], "distance_km": round(km, 1)}}
+    status = "too_far" if km > MAX_STATION_KM else "ready" if _key("WEATHER_PAST_API_KEY") else "no_key"
+    return {**base, "status": status, "station": {"name": station[1], "distance_km": round(km, 1)}, "max_km": MAX_STATION_KM}
 
 
 @router.post("/sync")
@@ -215,4 +211,6 @@ def sync_weather(request: Request, db: Session = Depends(get_db)):
         result = sync_observed(db, _get(request), key, *location)
     except official.OfficialError as error:
         raise HTTPException(status_code=502, detail={"code": "source_unavailable", "reason": error.code}) from None
+    if result.get("too_far"):
+        return {"status": "too_far", **result, **_status(db), "max_km": MAX_STATION_KM}
     return {"status": "ready", **result, **_status(db)}

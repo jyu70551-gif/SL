@@ -189,3 +189,36 @@ def test_market_day_label_comes_from_saved_days(client):
 def test_forecast_requires_login(client):
     client.headers.pop("Authorization")
     assert client.get("/api/forecast/tomorrow").status_code == 401
+
+# ---------------------------------------------------------------- 전국 관측소
+def test_station_table_is_complete_and_sane():
+    from app.asos_stations import STATIONS
+    ids = [s[0] for s in STATIONS]
+    assert len(STATIONS) == 97 and len(set(ids)) == 97 and ids == sorted(ids)
+    assert all(isinstance(s[0], int) and s[1] and 33 < s[2] < 39 and 124 < s[3] < 132 for s in STATIONS)  # 한반도와 제주 범위
+
+
+@pytest.mark.parametrize("lat, lon, expected", [
+    (36.1972, 126.6857, "보령"),  # 충남 보령
+    (34.9507, 127.4872, "순천"),  # 전남 순천
+    (33.4996, 126.5312, "제주"),  # 제주시
+    (37.4846, 130.9057, "울릉도"),  # 울릉도 (독도 쪽 바다 위는 제외)
+    (35.1796, 129.0756, "부산"),  # 부산시청
+    (37.5665, 126.9780, "서울"),  # 서울시청
+])
+def test_nearest_station_works_across_the_country(lat, lon, expected):
+    station, km = weather.nearest_station(lat, lon)
+    assert station[1] == expected and km < weather.MAX_STATION_KM
+
+
+def test_far_from_every_station_weather_is_not_fetched(client, monkeypatch):
+    monkeypatch.setenv("WEATHER_PAST_API_KEY", "fake-key")
+    seed(client, 5, with_weather=False)
+    client.post("/api/settings/store", json={"latitude": 33.0, "longitude": 132.0})  # 허용 범위 안에서 관측소가 가장 먼 바다 위 지점(약 360km)
+    calls = []
+    client.app.state.official_get = lambda url, params: calls.append(params) or {}
+    info = client.get("/api/settings/weather").json()
+    assert info["status"] == "too_far" and info["station"]["distance_km"] > weather.MAX_STATION_KM and info["max_km"] == weather.MAX_STATION_KM
+    result = client.post("/api/settings/weather/sync").json()
+    assert result["status"] == "too_far" and result["added"] == 0 and calls == []  # 기상청을 부르지도 않음
+    assert client.get("/api/settings/weather").json()["days"] == 0

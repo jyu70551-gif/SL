@@ -19,6 +19,7 @@ STORE_PAGE = 1000  # 한 번에 받을 수 있는 최대 개수
 STORE_MAX_PAGES = 3  # 이보다 많은 지역은 일부만 세고 그렇다고 알립니다
 CONVENIENCE = "편의점"
 STORE_TTL = 24 * 3600
+NO_DATA = "03"  # NODATA_ERROR: 조회된 상가 없음
 
 SGIS_BASE = "https://sgisapi.mods.go.kr/OpenAPI3"
 SGIS_TTL = 7 * 24 * 3600
@@ -38,6 +39,8 @@ def _store_page(get, key: str, lat: float, lon: float, page: int) -> dict:
     header, body = (data or {}).get("header"), (data or {}).get("body")
     if not isinstance(header, dict) or not isinstance(body, dict):
         raise OfficialError("bad_response")
+    if header.get("resultCode") == NO_DATA:  # 반경 안에 상가가 없을 때도 오류 코드로 알려 줍니다. 실패가 아니라 0곳입니다.
+        return {"total": 0, "items": []}
     if header.get("resultCode") != "00":
         raise OfficialError("api_error")
     items = body.get("items")
