@@ -8,7 +8,7 @@
 """
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -135,7 +135,7 @@ def read_store(db: Session = Depends(get_db)):
 
 
 @router.post("/store")
-def change_store(body: StoreBody, db: Session = Depends(get_db)):
+def change_store(body: StoreBody, request: Request, db: Session = Depends(get_db)):
     city, dong = body.city.strip(), body.dong.strip()
     if len(city) > MAX_PLACE_LENGTH or len(dong) > MAX_PLACE_LENGTH:
         _fail(422, "place_too_long")
@@ -146,13 +146,25 @@ def change_store(body: StoreBody, db: Session = Depends(get_db)):
         _fail(422, "invalid_location")  # 위도와 경도는 함께 입력해야 합니다
     if has_lat and not (KOREA_LAT[0] <= body.latitude <= KOREA_LAT[1] and KOREA_LON[0] <= body.longitude <= KOREA_LON[1]):
         _fail(422, "invalid_location")
+    from app import autosync  # 순환 import 를 피하려고 여기서 불러옵니다
+
+    before = store_location(db)
+    after = (body.latitude, body.longitude) if has_lat else None
+    moved = before is not None and (after is None or abs(before[0] - after[0]) > 1e-4 or abs(before[1] - after[1]) > 1e-4)
     _set_value(db, STORE_CITY_KEY, city)
     _set_value(db, STORE_DONG_KEY, dong)
     _set_value(db, STORE_LAT_KEY, repr(body.latitude) if has_lat else "")
     _set_value(db, STORE_LON_KEY, repr(body.longitude) if has_lon else "")
-    db.execute(delete(MarketDay))
-    db.add_all(MarketDay(day=d) for d in sorted(set(body.market_days)))
+    if moved:
+        # 위치가 바뀌면 옛 지역의 방학·장날·날씨는 맞지 않으니 지우고 새 위치로 다시 채웁니다.
+        autosync.reset_region(db, after)
+    else:
+        db.execute(delete(MarketDay))
+        db.add_all(MarketDay(day=d) for d in sorted(set(body.market_days)))
     _save(db)
+    if moved or before is None:
+        autosync.forget_attempts(request)
+    autosync.fill_in(request, db)  # 새 위치의 자료를 바로 채웁니다 (실패해도 저장은 그대로 끝납니다)
     return _store_view(db)
 
 

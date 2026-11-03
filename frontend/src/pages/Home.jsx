@@ -8,75 +8,107 @@ import ForecastCard from "../components/ForecastCard.jsx";
 import { StreetScene } from "../components/StoreScene.jsx";
 import SuggestCard from "../components/SuggestCard.jsx";
 import { ArrowLink } from "../components/Icons.jsx";
-import { count, dateLabel, hourLabel, monthDay, shortDate, won } from "../format.js";
+import { count, hourLabel, isToday, longDate, monthDay, periodLabel, shortDate, won } from "../format.js";
 
-// 영역 1. 오늘 매출 띠: 이 화면의 질문은 "오늘 매출이 평소만큼 나왔나?"입니다.
-// 총매출(가장 크게) → 금액 차이·증가율 → 판매 수량 → 확인할 사항 건수(발견한 것) → 자세히 보기
+// 영역 1. 매출 요약 띠: 이 화면의 질문은 "매출이 평소 기록과 비교해 어떤가?"입니다.
+// 읽는 순서: 제목과 기준 날짜·집계 시각(한 번만) → 총매출과 판매 수량 → 비교 문장 → 확인할 변화 건수 → 자세히 보기·비교 기준
+// 날짜·금액·건수·시각은 모두 실제 데이터에서 가져옵니다. 분석 날짜가 오늘이 아니면 "오늘"이라고 하지 않고 "기준일"이라고 합니다.
 function TodayBand({ data, attention }) {
   const { today, comparison, weekday } = data;
+  const [basisOpen, setBasisOpen] = useState(false);
   const ready = comparison.status === "ready";
   const used = comparison.used_dates ?? [];
   const qtyDiff = ready ? today.total_quantity - comparison.baseline_quantity : null;
   // 비교 기준이 0원이면 증가율은 계산하지 않고 금액 차이만 보여줍니다.
   const zeroBase = ready && comparison.baseline_amount === 0;
+  const dayWord = isToday(data.date) ? "오늘" : "기준일";
+  const earlier = attention ? attention.total - attention.today : 0;
   return (
-    <section className="band" aria-label="오늘 매출">
-      <p className="band-meta">
-        오늘 · {dateLabel(data.date)} · {hourLabel(data.cutoff_hour)}까지 집계
-      </p>
-      <div className="band-main">
-        <div className="band-figure">
-          <div className="headline-label">총매출</div>
-          <div className="band-value">{won(today.total_amount)}</div>
-          {ready ? (
-            <div className="band-diff">
-              <DiffLine
-                diff={today.total_amount - comparison.baseline_amount}
-                pct={zeroBase ? null : comparison.amount_change_pct}
-                basis={`같은 ${weekday}요일 기준`}
-                directional
-              />
+    <section className="band" aria-labelledby="band-title">
+      <div className="band-top">
+        <h1 className="band-title" id="band-title">
+          {periodLabel(data.cutoff_hour)} 매출 점검
+        </h1>
+        <p className="band-when">
+          <span>
+            {dayWord} · {longDate(data.date)}
+          </span>
+          <span>{hourLabel(data.cutoff_hour)}까지 집계</span>
+        </p>
+      </div>
+
+      <div className="band-body">
+        <div className="band-main">
+          <div className="band-figure">
+            <div className="band-row">
+              <div className="band-value">{won(today.total_amount)}</div>
+              <p className="band-qty">
+                판매 수량 <strong>{count(today.total_quantity)}</strong>
+              </p>
             </div>
-          ) : (
-            <p className="diff-line same">비교 자료가 부족해요</p>
-          )}
-        </div>
-        {/* 컴퓨터 화면에서 가운데가 비어 보이는 자리를 동네 풍경으로 채웁니다. (휴대폰에서는 안 보입니다) */}
-        <StreetScene />
-        <div className="band-side">
-          <p className="band-qty">
-            판매 수량 <strong>{count(today.total_quantity)}</strong>
-          </p>
+            {ready ? (
+              <div className="band-diff">
+                <DiffLine
+                  diff={today.total_amount - comparison.baseline_amount}
+                  pct={zeroBase ? null : comparison.amount_change_pct}
+                  basis={`같은 ${weekday}요일 기준`}
+                  directional
+                />
+              </div>
+            ) : (
+              <p className="diff-line same">비교 자료가 부족해요</p>
+            )}
+          </div>
+
           {attention && (
-            <a className={`band-finding${attention.total ? " flagged" : ""}`} href="#attention">
-              {attention.total ? (
+            <a className="band-finding" href="#attention">
+              {attention.total === 0 ? (
                 <>
-                  <span aria-hidden="true">⚠ </span>확인할 사항 <strong>{attention.total}건</strong>
-                  {attention.today > 0 && <> · 오늘의 변화 {attention.today}건</>}
+                  <span aria-hidden="true">✓ </span>지금 확인할 사항이 없어요
                 </>
               ) : (
                 <>
-                  <span aria-hidden="true">✓ </span>지금 확인할 사항이 없어요
+                  {attention.today > 0 && (
+                    <span>
+                      {isToday(data.date) ? "오늘 확인할 변화" : "기준일 변화"} <strong>{attention.today}건</strong>
+                    </span>
+                  )}
+                  {attention.today > 0 && earlier > 0 && <span className="band-sep" aria-hidden="true"> · </span>}
+                  {earlier > 0 && (
+                    <span>
+                      이전 미확인 <strong>{earlier}건</strong>
+                    </span>
+                  )}
+                  <span aria-hidden="true"> ›</span>
                 </>
               )}
             </a>
           )}
-          <ArrowLink to="/sales">총매출 자세히 보기</ArrowLink>
+
+          <div className="band-links">
+            <ArrowLink to="/sales">총매출 보기</ArrowLink>
+            {ready && (
+              <button type="button" className="text-button" aria-expanded={basisOpen} onClick={() => setBasisOpen(!basisOpen)}>
+                비교 기준 {basisOpen ? "▴" : "▾"}
+              </button>
+            )}
+          </div>
         </div>
+        <StreetScene />
       </div>
 
-      {ready ? (
-        <BasisToggle summary={`최근 같은 ${weekday}요일 ${comparison.weeks_used}번의 평균`}>
+      {ready && basisOpen && (
+        <div className="basis-panel">
           <p>
             {shortDate(data.date)} 이전, 같은 {weekday}요일이면서 같은 시각({hourLabel(data.cutoff_hour)})까지 집계한 최근{" "}
             {comparison.weeks_used}번{used.length > 0 && <> ({used.map(monthDay).join(", ")})</>}의 <strong>평균</strong>이에요.
           </p>
           <ul className="basis-list">
             <li>
-              총매출 기준 {won(comparison.baseline_amount)} → 오늘 {won(today.total_amount)}
+              총매출 기준 {won(comparison.baseline_amount)} → {dayWord} {won(today.total_amount)}
             </li>
             <li>
-              판매 수량 기준 {count(comparison.baseline_quantity)} → 오늘 {count(today.total_quantity)} (
+              판매 수량 기준 {count(comparison.baseline_quantity)} → {dayWord} {count(today.total_quantity)} (
               {qtyDiff > 0 ? "+" : qtyDiff < 0 ? "−" : ""}
               {count(Math.abs(qtyDiff))})
             </li>
@@ -84,18 +116,18 @@ function TodayBand({ data, attention }) {
           {comparison.excluded_other_hour > 0 && (
             <p>마감 시각이 달라서 뺀 같은 요일이 {comparison.excluded_other_hour}번 있어요.</p>
           )}
-        </BasisToggle>
-      ) : (
-        <NeedMore comparison={comparison} weekday={weekday} />
+        </div>
       )}
+      {!ready && <NeedMore comparison={comparison} weekday={weekday} />}
     </section>
   );
 }
 
+// 비교 범위는 "지난 기록의 가장 적었던 값~가장 많았던 값"이라서 '평소'나 '정상'이라고 하지 않고 '관측 범위'라고 말합니다.
 const VERDICT = {
-  high: { text: "평소보다 많음", tone: "warn" },
-  normal: { text: "평소 범위", tone: "ok" },
-  low: { text: "평소보다 적음", tone: "warn" },
+  high: { text: "관측 범위보다 많음", tone: "warn" },
+  normal: { text: "관측 범위 안", tone: "ok" },
+  low: { text: "관측 범위보다 적음", tone: "warn" },
 };
 
 // 영역 3. 집중 관리 식품군: 분류 · 판매 수량 · 비교 범위 · 상태
@@ -118,10 +150,10 @@ function FocusFood({ data }) {
               <span className="food-name" role="cell">
                 {item.category}
               </span>
-              <span className="food-qty" role="cell">
+              <span className="food-qty" role="cell" data-label="판매 수량">
                 {count(item.today_quantity)}
               </span>
-              <span className="food-range" role="cell">
+              <span className="food-range" role="cell" data-label="과거 관측 범위">
                 {verdict ? `${item.range_min}~${item.range_max}개` : "—"}
               </span>
               <span className={`verdict ${verdict ? verdict.tone : "none"}`} role="cell">
@@ -132,9 +164,13 @@ function FocusFood({ data }) {
         })}
       </div>
       {ready ? (
-        <p className="card-note">
-          과거 관측 범위는 최근 같은 {data.weekday}요일 {first.weeks_used}번의 가장 적었던 값~가장 많았던 값이에요. 상품별이 아니라 대분류 기준이에요.
-        </p>
+        <BasisToggle summary={`최근 같은 ${data.weekday}요일 ${first.weeks_used}번 기준`}>
+          <p>
+            과거 관측 범위는 같은 {data.weekday}요일, 같은 시각({hourLabel(data.cutoff_hour)})까지 집계한 최근 {first.weeks_used}번 중 가장 적었던 값~가장
+            많았던 값이에요.
+          </p>
+          <p>통계적으로 &lsquo;정상&rsquo;이라는 뜻이 아니라 지난 기록이 움직인 폭이에요. 상품별이 아니라 대분류 기준이에요.</p>
+        </BasisToggle>
       ) : (
         <NeedMore comparison={first} weekday={data.weekday} />
       )}
@@ -196,7 +232,6 @@ export default function Home() {
 
   return (
     <section className="home-page">
-      <h1 className="sr-only">홈</h1>
       {data?.has_data && <TodayBand data={data} attention={attention} />}
 
       <SetupReminder />
@@ -218,21 +253,21 @@ export default function Home() {
           {data && !data.has_data && <EmptyCard />}
 
           {data?.has_data && (
-            <div className="slot slot-3">
+            <div className="slot slot-attention">
               <AnomalyCard weekday={data.weekday} onSummary={setAttention} />
             </div>
           )}
         </div>
         <div className="home-col">
-          <div className="slot slot-1">
+          <div className="slot slot-ai">
             <SuggestCard />
           </div>
           {data?.has_data && (
             <>
-              <div className="slot slot-4">
+              <div className="slot slot-focus">
                 <FocusFood data={data} />
               </div>
-              <div className="slot slot-5">
+              <div className="slot slot-forecast">
                 <ForecastCard />
               </div>
             </>

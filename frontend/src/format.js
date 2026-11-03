@@ -93,3 +93,34 @@ export function rangeText(isoDates) {
   const last = monthDay(isoDates[isoDates.length - 1]);
   return first === last ? first : `${first} ~ ${last}`;
 }
+
+// "2월 25일 수요일"
+export function longDate(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${m}월 ${d}일 ${WEEKDAYS[new Date(y, m - 1, d).getDay()]}요일`;
+}
+
+// 분석 날짜가 실제 오늘인지. 지난 자료를 보고 있을 때 "오늘"이라고 부르면 오해하기 때문에 구분합니다.
+export function isToday(iso) {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return iso === `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+// 집계 시각에 맞는 이름: 오전이면 "아침", 오후면 "오후", 저녁 6시 이후면 "저녁" (예: 오전 8시까지 → "아침 매출 점검")
+export function periodLabel(hour) {
+  return hour < 12 ? "아침" : hour < 18 ? "오후" : "저녁";
+}
+
+// 예상 금액을 너무 정밀해 보이지 않게 보여 주는 표시용 어림 (계산값은 그대로 두고 화면에만 적용): 69046 → "6.9만", 8240 → "8,200원"
+export function approxWon(n) {
+  if (n >= 10000) return `${(Math.round(n / 1000) / 10).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}만`;
+  return `${(Math.round(n / 100) * 100).toLocaleString("ko-KR")}원`;
+}
+
+// "약 6.9만~15.6만원"
+export function approxRange(low, high) {
+  const a = approxWon(low);
+  const b = approxWon(high);
+  return `약 ${a}~${b}${b.endsWith("만") ? "원" : ""}`;
+}

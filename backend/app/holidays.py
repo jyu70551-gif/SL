@@ -1,9 +1,12 @@
 """공휴일 가져오기 (docs/plan.md 6-2). 한국천문연구원 특일 정보(공공데이터포털)에서 올해와 내년 공휴일을 받아
-점주가 확인한 뒤 저장합니다. 대체공휴일·임시공휴일도 공식 자료에 올라오면 함께 들어옵니다. AI는 쓰지 않습니다.
+저장합니다. 대체공휴일·임시공휴일도 공식 자료에 올라오면 함께 들어옵니다. AI는 쓰지 않습니다.
+공휴일은 점주가 따로 확인할 것이 없어서, 홈을 열 때 알아서 가져옵니다(auto_sync). 설정의 가져오기는 자동이 안 될 때의 보조 수단입니다.
 """
+import logging
+import time
 from datetime import date
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,6 +19,11 @@ from app.settings import _save
 router = APIRouter(prefix="/api/settings/holidays", tags=["holidays"], dependencies=[Depends(require_auth)])
 
 HOLIDAY = "holiday"
+logger = logging.getLogger("sl")
+
+# 올해·내년이 다 있으면 하루에 한 번만 새로 확인하고(임시공휴일 등이 뒤늦게 올라올 수 있어서), 비어 있으면 6시간마다 다시 시도합니다.
+AUTO_REFRESH_SECONDS = 24 * 3600
+AUTO_RETRY_SECONDS = 6 * 3600
 
 
 def _saved(db: Session) -> set[tuple[date, str]]:
@@ -34,6 +42,33 @@ def _official_holidays(request: Request) -> list[dict]:
         return official.fetch_holidays(get, key, year) + official.fetch_holidays(get, key, year + 1)
     except official.OfficialError as error:
         _unavailable(error)
+
+
+def auto_sync(request: Request, db: Session) -> None:
+    """올해·내년 공휴일을 조용히 가져와 저장합니다. 키가 없거나 연결이 안 돼도 화면을 막지 않고 그냥 넘어갑니다."""
+    state = request.app.state
+    counts = _counts(db)
+    complete = counts["this_year_count"] > 0 and counts["next_year_count"] > 0
+    wait = AUTO_REFRESH_SECONDS if complete else AUTO_RETRY_SECONDS
+    last = getattr(state, "holiday_sync_at", None)
+    if last is not None and time.monotonic() - last < wait:
+        return
+    if not _key("HOLIDAY_API_KEY"):
+        return
+    state.holiday_sync_at = time.monotonic()
+    try:
+        found = _official_holidays(request)
+    except Exception:  # 공식 서비스 오류든 예상 밖 오류든 홈 화면은 계속 보여 줍니다
+        logger.warning("공휴일을 자동으로 가져오지 못했어요.")
+        return
+    saved = _saved(db)
+    for h in found:
+        if (h["date"], h["name"]) not in saved:
+            db.add(ScheduleEvent(kind=HOLIDAY, name=h["name"], start_date=h["date"], end_date=h["date"], source="official"))
+    try:
+        _save(db)
+    except HTTPException:
+        logger.warning("자동으로 가져온 공휴일을 저장하지 못했어요.")
 
 
 @router.get("")

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { request } from "../api.js";
-import { won, shortDate } from "../format.js";
+import { isToday, won, shortDate } from "../format.js";
 import { Card, NeedMore } from "./Card.jsx";
 import { DiffLine } from "./Change.jsx";
 import { ArrowLink } from "./Icons.jsx";
@@ -16,9 +16,12 @@ function Row({ entry }) {
       >
         <div className="row-main">
           <span className="row-title">
-            <span className="row-flag" aria-hidden="true">
-              ⚠
-            </span>
+            {/* 경고 표시는 며칠째 안 팔리는 등 이어지는 변화가 탐지된 항목에만 붙입니다. 단순한 증가·감소는 ▲▼와 문구만 씁니다. */}
+            {entry.kind_text && (
+              <span className="row-flag" aria-hidden="true">
+                ⚠
+              </span>
+            )}
             <strong>{entry.category}</strong>
             <span className="row-date"> · {shortDate(entry.date)}</span>
           </span>
@@ -115,9 +118,12 @@ export default function AnomalyCard({ weekday, onSummary }) {
   const entries = entriesOf(data);
   const todays = entries.filter((e) => e.date === data.date);
   const earlier = entries.filter((e) => e.date !== data.date);
-  const hidden = open ? 0 : Math.max(0, entries.length - SHOWN);
-  const showToday = open ? todays : todays.slice(0, SHOWN);
-  const showEarlier = open ? earlier : earlier.slice(0, Math.max(0, SHOWN - todays.length));
+  // 오늘(기준일)의 변화는 항상 다 보여 주고, 이전 미확인 사항이 많으면 앞의 몇 건만 보여 준 뒤 접어 둡니다.
+  const room = Math.max(0, SHOWN - todays.length);
+  const hidden = open ? 0 : Math.max(0, earlier.length - room);
+  const showToday = todays;
+  const showEarlier = open ? earlier : earlier.slice(0, room);
+  const dayName = isToday(data.date) ? "오늘" : "기준일";
 
   let body;
   let cardTitle = title;
@@ -128,12 +134,12 @@ export default function AnomalyCard({ weekday, onSummary }) {
     aside = `${entries.length}건`;
     body = (
       <>
-        <Group heading={`오늘의 변화 · ${todays.length}건`} entries={showToday} />
+        <Group heading={`${dayName}의 변화 · ${todays.length}건`} entries={showToday} />
         {showEarlier.length > 0 && <Group heading={`이전 미확인 사항 · ${earlier.length}건`} entries={showEarlier} />}
       </>
     );
   } else if (todays.length) {
-    cardTitle = `오늘의 변화 · ${todays.length}건`;
+    cardTitle = `${dayName}의 변화 · ${todays.length}건`;
     body = <Group entries={showToday} />;
   } else {
     cardTitle = `이전 미확인 사항 · ${earlier.length}건`;
@@ -144,9 +150,9 @@ export default function AnomalyCard({ weekday, onSummary }) {
     <div id="attention">
       <Card title={cardTitle} aside={aside} keyMark={entries.length > 0}>
         {body}
-        {entries.length > SHOWN && (
+        {earlier.length > room && (
           <button type="button" className="text-button more-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-            {open ? "접기" : `나머지 ${hidden}건 더 보기`}
+            {open ? "이전 미확인 접기" : `이전 미확인 ${hidden}건 더 보기`}
           </button>
         )}
         <ArrowLink to="/reviewed">운영 상황 기록 보기</ArrowLink>

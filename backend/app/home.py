@@ -8,10 +8,11 @@
 """
 from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app import autosync
 from app.auth import get_db, require_auth
 from app.models import DailySale, SalesUpload
 
@@ -134,5 +135,6 @@ def build_home_summary(db: Session) -> dict:
 
 
 @router.get("/summary")
-def home_summary(db: Session = Depends(get_db)):
+def home_summary(request: Request, db: Session = Depends(get_db)):
+    autosync.fill_in(request, db)  # 공휴일·날씨·학교 방학·장날을 알아서 채웁니다 (실패해도 홈은 그대로 보여 줍니다)
     return build_home_summary(db)

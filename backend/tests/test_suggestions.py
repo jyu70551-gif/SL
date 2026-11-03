@@ -23,6 +23,8 @@ def fake_kakao(url, params, key):
     code, radius = params["category_group_code"], params["radius"]
     base = {"SC4": 3, "AC5": 10, "FD6": 40, "CE7": 12, "CS2": 2}.get(code, 0)
     total = base * (2 if radius == 1000 else 1)
+    if code == "AC5":
+        total = 4 if radius == 100 else 0  # 학원은 점포 바로 앞(100m)만 셉니다
     docs = []
     if code == "SC4":
         docs = [kakao_doc("가상초등학교", 120), kakao_doc("가상중학교", 300), kakao_doc("가상고등학교", 450)]
@@ -105,7 +107,7 @@ def test_all_fact_groups_are_collected_with_plain_texts(setup):
     assert facts["event:2026-11-11"]["text"] == "빼빼로데이: 11월 11일 (9일 뒤)"
     assert "방학이 아니에요" in facts["vacation"]["text"] and "12월 1일" in facts["vacation"]["text"] and "29일 뒤예요" in facts["vacation"]["text"]
     assert "장날" in facts["market"]["text"] and "11월 3일" in facts["market"]["text"] and "내일" in facts["market"]["text"]
-    assert facts["places:500"]["text"] == "점포 반경 500m 안에는 학교 3곳, 학원 10곳, 음식점 40곳, 카페 12곳, 편의점 2곳."
+    assert facts["places:500"]["text"] == "점포 반경 500m 안에는 학교 3곳, 음식점 40곳, 카페 12곳, 편의점 2곳."
     assert "초등학교 1곳, 중학교 1곳, 고등학교 1곳" in facts["schools:500"]["text"]
     assert "가상초등학교(120m)" in facts["schools:near"]["text"]
     assert facts["weather:오늘"]["text"].startswith("오늘 기온은 4도에서 11도") and "비 소식은 없어요" in facts["weather:오늘"]["text"]
@@ -245,7 +247,7 @@ def test_student_area_fact_joins_schools_and_says_it_is_an_estimate(setup):
     text = facts["students"]["text"]
     assert "초등학교 1곳, 중학교 1곳, 고등학교 1곳" in text and "여러 학교가 가까워서" in text
     assert "학생·수강생 손님의 영향을 받을 수 있는 상권" in text and "일반적인 추정" in text and "가상초등학교(120m)" in text
-    assert "학원 10곳" in text and "오후와 저녁" in text
+    assert "학원 4곳(바로 앞 100m)" in text and "오후와 저녁" in text
     assert "university" not in facts  # 500m 안에는 대학이 없음
 
 
@@ -287,15 +289,15 @@ def test_university_break_is_a_rough_calendar_estimate(today, expected):
 
 
 def _area(schools, academies):
-    return {"school_kinds": {500: {"초등학교": schools} if schools else {}}, "counts": {500: {"학원": academies}},
+    return {"school_kinds": {500: {"초등학교": schools} if schools else {}}, "counts": {500: {}}, "academy": academies,
             "schools": [{"name": "가상초등학교", "kind": "초등학교", "distance_m": 100}] if schools else []}
 
 
 @pytest.mark.parametrize("schools, academies, expected, absent", [
-    (0, 5, ["학원 5곳", "학원이 모여 있어서", "오후와 저녁"], ["학교가 가까워서", "가장 가까운 학교"]),  # 학교 없이 학원가만
-    (0, 4, ["학교가 없어서", "학원은 4곳"], ["영향을 받을 수 있는"]),  # 기준(5곳) 미만
+    (0, 3, ["학원 3곳", "학원이 모여 있어서", "오후와 저녁"], ["학교가 가까워서", "가장 가까운 학교"]),  # 학교 없이 학원가만
+    (0, 2, ["학교가 없어서", "학원은 2곳"], ["영향을 받을 수 있는"]),  # 기준(3곳) 미만
     (2, 0, ["초등학교 2곳", "학교가 가까워서"], ["학원", "오후와 저녁"]),  # 학원 없이 학교만
-    (3, 12, ["초등학교 3곳", "학원 12곳", "여러 학교가 가까워서", "오후와 저녁"], []),
+    (3, 12, ["초등학교 3곳", "학원 12곳(바로 앞 100m)", "여러 학교가 가까워서", "오후와 저녁"], []),
 ])
 def test_students_fact_uses_schools_or_academies(schools, academies, expected, absent):
     text = suggestions.student_facts(_area(schools, academies), TODAY)[0]["text"]

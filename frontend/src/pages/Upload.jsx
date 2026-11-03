@@ -1,8 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { ApiError, request } from "../api.js";
 import { dateLabel, hourLabel } from "../format.js";
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
+const HOUR_KEY = "sl.cutoffHour"; // 지난번에 고른 시각을 기억해 두었다가 처음부터 채워 줍니다 (매일 같은 시각에 올리니까요)
+const SHOWN_UPLOADS = 7;
+
+function lastHour() {
+  try {
+    const saved = localStorage.getItem(HOUR_KEY);
+    return saved !== null && /^\d+$/.test(saved) && Number(saved) < 24 ? saved : "";
+  } catch {
+    return "";
+  }
+}
+
+const sizeText = (bytes) => (bytes < 1024 ? `${bytes}B` : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)}KB` : `${(bytes / 1024 / 1024).toFixed(1)}MB`);
 
 async function fileToBase64(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -16,7 +30,10 @@ async function fileToBase64(file) {
 
 export default function Upload() {
   const [file, setFile] = useState(null);
-  const [hour, setHour] = useState("");
+  const [hour, setHour] = useState(lastHour);
+  const [dragging, setDragging] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const [done, setDone] = useState(false); // 방금 올렸는지 (홈으로 가는 버튼을 보여 줍니다)
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
@@ -38,6 +55,12 @@ export default function Upload() {
     loadUploads();
   }, [loadUploads]);
 
+  function pickFile(next) {
+    setFile(next);
+    setDone(false);
+    clearMessages();
+  }
+
   function clearMessages() {
     setSuccess("");
     setError("");
@@ -58,6 +81,12 @@ export default function Upload() {
         },
       });
       clearMessages();
+      try {
+        localStorage.setItem(HOUR_KEY, String(result.cutoff_hour));
+      } catch {
+        /* 저장이 막혀 있어도 올리기는 정상입니다 */
+      }
+      setDone(true);
       setSuccess(
         `${dateLabel(result.date)} 매출을 ${result.overwritten ? "덮어써서 " : ""}올렸어요. ` +
           `(${hourLabel(result.cutoff_hour)}까지, 대분류 ${result.row_count}줄)`,
@@ -119,17 +148,57 @@ export default function Upload() {
       <h1 className="page-title">파일 올리기</h1>
 
       <form className="card form" onSubmit={submit}>
-        <label htmlFor="csv-file">매출 파일 (CSV)</label>
-        <input
-          key={fileInputKey}
-          id="csv-file"
-          type="file"
-          accept=".csv,text/csv"
-          onChange={(e) => {
-            setFile(e.target.files?.[0] || null);
-            clearMessages();
+        <span className="form-label" id="csv-label">
+          매출 파일 (CSV)
+        </span>
+        {/* 눌러서 고르거나 끌어다 놓습니다. 실제 파일 입력은 이 칸 안에 있어서 키보드로도 쓸 수 있어요. */}
+        <label
+          className={`dropzone${dragging ? " dragging" : ""}${file ? " has-file" : ""}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
           }}
-        />
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            const dropped = e.dataTransfer.files?.[0];
+            if (dropped) pickFile(dropped);
+          }}
+        >
+          <input
+            key={fileInputKey}
+            id="csv-file"
+            className="dropzone-input"
+            type="file"
+            accept=".csv,text/csv"
+            aria-labelledby="csv-label"
+            onChange={(e) => pickFile(e.target.files?.[0] || null)}
+          />
+          {file ? (
+            <span className="dropzone-text">
+              <strong>{file.name}</strong>
+              <span className="muted"> · {sizeText(file.size)} · 다른 파일을 고르려면 여기를 누르세요</span>
+            </span>
+          ) : (
+            <span className="dropzone-text">
+              <strong>CSV 파일을 여기에 끌어다 놓으세요</strong>
+              <span className="muted"> 또는 눌러서 고르기</span>
+            </span>
+          )}
+        </label>
+        {file && (
+          <button
+            type="button"
+            className="text-button file-remove"
+            onClick={() => {
+              pickFile(null);
+              setFileInputKey((k) => k + 1);
+            }}
+          >
+            파일 빼기
+          </button>
+        )}
 
         <label htmlFor="cutoff-hour">몇 시까지의 매출인가요?</label>
         <select
@@ -184,9 +253,16 @@ export default function Upload() {
       )}
 
       {success && (
-        <p className="success" role="status">
-          {success}
-        </p>
+        <div className="success-row">
+          <p className="success" role="status">
+            {success}
+          </p>
+          {done && (
+            <Link to="/" className="button">
+              홈에서 확인하기
+            </Link>
+          )}
+        </div>
       )}
       {error && (
         <p className="error" role="alert">
@@ -201,20 +277,27 @@ export default function Upload() {
         </ul>
       )}
 
-      <h2 className="section-title">올려 둔 날짜</h2>
+      <h2 className="section-title">올려 둔 날짜{uploads && uploads.length > 0 ? ` · ${uploads.length}일` : ""}</h2>
       {uploads === null ? (
         <p className="muted">목록을 불러오지 못했어요.</p>
       ) : uploads.length === 0 ? (
         <p className="muted">아직 올린 파일이 없어요.</p>
       ) : (
-        <ul className="upload-list">
-          {uploads.map((u) => (
-            <li key={u.date}>
-              <span>{dateLabel(u.date)}</span>
-              <span className="muted">{hourLabel(u.cutoff_hour)}까지</span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="upload-list">
+            {(showAll ? uploads : uploads.slice(0, SHOWN_UPLOADS)).map((u) => (
+              <li key={u.date}>
+                <span>{dateLabel(u.date)}</span>
+                <span className="muted">{hourLabel(u.cutoff_hour)}까지</span>
+              </li>
+            ))}
+          </ul>
+          {uploads.length > SHOWN_UPLOADS && (
+            <button type="button" className="text-button more-toggle" aria-expanded={showAll} onClick={() => setShowAll(!showAll)}>
+              {showAll ? "접기" : `이전 ${uploads.length - SHOWN_UPLOADS}일 더 보기`}
+            </button>
+          )}
+        </>
       )}
     </section>
   );

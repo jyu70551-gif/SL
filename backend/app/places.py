@@ -12,9 +12,11 @@ from app.address import AddressError
 CATEGORY_URL = "https://dapi.kakao.com/v2/local/search/category.json"
 RADII = (500, 1000)
 CATEGORIES = [
-    ("SC4", "학교"), ("AC5", "학원"), ("PS3", "어린이집·유치원"), ("FD6", "음식점"), ("CE7", "카페"), ("CS2", "편의점"),
+    ("SC4", "학교"), ("PS3", "어린이집·유치원"), ("FD6", "음식점"), ("CE7", "카페"), ("CS2", "편의점"),
     ("SW8", "지하철역"), ("MT1", "대형마트"), ("BK9", "은행"), ("HP8", "병원"), ("PM9", "약국"), ("AD5", "숙박"),
 ]
+# 학원은 점포 바로 앞(100m) 것만 셉니다. 멀리 있는 학원 손님은 편의점에 들르지 않을 것으로 보고 500m·1km 목록에서는 뺐습니다.
+ACADEMY_RADIUS = 100
 SCHOOL_KINDS = ["초등학교", "중학교", "고등학교", "대학교"]
 NEAR_SCHOOLS = 3
 SEARCH_SIZE = 15  # 카카오가 한 번에 주는 최대 개수
@@ -53,19 +55,23 @@ def _search(get, key: str, lat: float, lon: float, code: str, radius: int) -> di
 
 
 def survey(get, key: str, lat: float, lon: float) -> dict:
-    """{"counts": {500: {"학교": 3, ...}, 1000: {...}}, "schools": [{name, kind, distance_m}], "school_kinds": {500: {...}}}.
+    """{"counts": {500: {"학교": 3, ...}, 1000: {...}}, "academy": 학원 수(100m), "schools": [{name, kind, distance_m}], "school_kinds": {500: {...}}}.
     카카오가 오류를 내면 AddressError."""
     cache_key = (round(lat, 3), round(lon, 3))
     hit = _cache.get(cache_key)
     if hit and time.monotonic() - hit[0] < TTL_SECONDS:
         return hit[1]
-    jobs = [(code, name, radius) for radius in RADII for code, name in CATEGORIES]
+    jobs = [(code, name, radius) for radius in RADII for code, name in CATEGORIES] + [("AC5", "학원", ACADEMY_RADIUS)]
     with ThreadPoolExecutor(max_workers=6) as pool:
         results = list(pool.map(lambda j: _search(get, key, lat, lon, j[0], j[2]), jobs))
     counts: dict[int, dict[str, int]] = {r: {} for r in RADII}
     schools: dict[int, list[dict]] = {r: [] for r in RADII}
+    academy = 0
     for (code, name, radius), data in zip(jobs, results):
         total = int((data.get("meta") or {}).get("total_count") or 0)
+        if code == "AC5":
+            academy = total
+            continue
         counts[radius][name] = total
         if code == "SC4":
             for doc in data.get("documents") or []:
@@ -78,7 +84,7 @@ def survey(get, key: str, lat: float, lon: float) -> dict:
         if counts[radius].get("학교", 0) <= SEARCH_SIZE:  # 목록이 전부 왔을 때만 중복을 뺀 학교 수로 바로잡습니다
             counts[radius]["학교"] = len(unique)
     near = [{"name": s["name"], "kind": school_kind(s["name"]), "distance_m": s["distance_m"]} for s in distinct_schools(schools[RADII[0]])[:NEAR_SCHOOLS]]
-    result = {"counts": counts, "schools": near, "school_kinds": kinds}
+    result = {"counts": counts, "schools": near, "school_kinds": kinds, "academy": academy}
     _cache[cache_key] = (time.monotonic(), result)
     return result
 

@@ -76,13 +76,15 @@ function RecordForm({ category, point, onChanged }) {
     <Card title="운영 상황 기록" aside={saved ? "✓ 기록됨" : null}>
       <form onSubmit={submit} className="record-form">
         <fieldset className="record-fieldset">
-          <legend className="record-legend">당시 특이사항이 있었나요?</legend>
-          {REASONS.map(([key, label]) => (
-            <label key={key} className="check-row">
-              <input type="checkbox" checked={reasons.includes(key)} onChange={() => toggle(key)} />
-              <span>{label}</span>
-            </label>
-          ))}
+          <legend className="record-legend">당시 특이사항이 있었나요? (해당하는 것을 모두 고르세요)</legend>
+          <div className="reason-grid">
+            {REASONS.map(([key, label]) => (
+              <label key={key} className={`reason-chip${reasons.includes(key) ? " on" : ""}`}>
+                <input type="checkbox" checked={reasons.includes(key)} onChange={() => toggle(key)} />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
         </fieldset>
         <label className="memo-label" htmlFor="record-memo">
           메모 (선택)
@@ -107,6 +109,11 @@ function RecordForm({ category, point, onChanged }) {
             </button>
           )}
         </div>
+        {saved && (
+          <p className="record-done">
+            ✓ 기록했어요. <Link to="/" className="text-link">홈으로 돌아가기</Link>
+          </p>
+        )}
         {error && (
           <p className="error" role="alert">
             저장하지 못했어요. 잠시 후 다시 눌러 주세요.

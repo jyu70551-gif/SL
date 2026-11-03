@@ -198,7 +198,7 @@ def university_break_text(today: date) -> str:
     return f"대학은 보통 지금 학기 중이에요. 다음 방학은 보통 {(min(starts) - today).days}일 뒤쯤 시작하지만 학교마다 달라서 어림일 뿐이에요."
 
 
-ACADEMY_MIN = 5  # 이 수 이상이면 학원가로 봅니다 (제 판단이고 공개 자료로 확인한 값이 아닙니다)
+ACADEMY_MIN = 3  # 점포 바로 앞(100m) 학원이 이 수 이상이면 학원가로 봅니다 (제 판단이고 공개 자료로 확인한 값이 아닙니다)
 ESTIMATE_NOTE = "이 점포의 판매 자료로 확인한 것은 아니고 일반적인 추정이에요."
 
 
@@ -208,16 +208,17 @@ def student_facts(found: dict, today: date) -> list[dict]:
     radius = places.RADII[0]
     kinds = found["school_kinds"][radius]
     schools = sum(kinds.values())
-    academies = found["counts"][radius].get("학원", 0)
+    academies = found.get("academy", 0)
+    academy_radius = places.ACADEMY_RADIUS
     academy_area = academies >= ACADEMY_MIN
     if not schools and not academy_area:
-        extra = f" 학원은 {academies}곳이에요." if academies else ""
+        extra = f" 바로 앞 {academy_radius}m 안 학원은 {academies}곳이에요." if academies else ""
         return [fact("students", "학생 상권", f"점포 반경 {radius}m 안에 학교가 없어서 학생 손님이 많은 상권으로 보기는 어려워요.{extra}")]
     parts = []
     if schools:
         parts.append(", ".join(f"{k} {n}곳" for k, n in kinds.items()))
     if academy_area:
-        parts.append(f"학원 {academies}곳")
+        parts.append(f"학원 {academies}곳(바로 앞 {academy_radius}m)")
     many = "여러 학교가 가까워서 " if schools >= 3 else "학교가 가까워서 " if schools else "학원이 모여 있어서 "
     after = " 학원은 방과 후 오후와 저녁에 손님이 몰릴 수 있는 시간대와 이어져요." if academy_area else ""
     nearest = found["schools"][0] if found["schools"] else None

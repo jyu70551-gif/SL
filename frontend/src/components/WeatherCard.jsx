@@ -70,9 +70,13 @@ export default function WeatherCard() {
           {info.missing > 0 && <> · 빠진 날 {info.missing}일</>}
         </p>
       )}
-      <button type="button" className="button" onClick={sync} disabled={busy || info?.status === "too_far" || (info && info.missing === 0)}>
-        {busy ? "가져오는 중…" : info && info.missing === 0 ? "모두 저장돼 있어요" : "빠진 날 날씨 가져오기"}
-      </button>
+      {info && info.missing === 0 && info.status !== "too_far" ? (
+        <p className="done-line">✓ 모든 날의 날씨가 저장돼 있어요.</p>
+      ) : (
+        <button type="button" className="button" onClick={sync} disabled={busy || info?.status === "too_far"}>
+          {busy ? "가져오는 중…" : "빠진 날 날씨 가져오기"}
+        </button>
+      )}
       {message?.kind === "ok" && <p className="settings-saved">{message.text}</p>}
       {message?.kind === "note" && <p className="card-note">{message.text}</p>}
       {message?.kind === "error" && (

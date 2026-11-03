@@ -5,7 +5,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from app import address, markets, official, schools
+from app import address, autosync, markets, official, schools
 from tests.conftest import build_app
 from tests.test_home import TEST_PASSWORD
 
@@ -239,12 +239,17 @@ def client(tmp_path, monkeypatch):
             return {"SchoolSchedule": [{"head": [{"list_total_count": len(rows)}, {"RESULT": {"CODE": "INFO-000"}}]}, {"row": rows}]}
         raise AssertionError(url)
 
+    # 설정 화면의 가져오기 흐름을 시험하는 동안에는 위치를 저장해도 자동 채우기가 끼어들지 않게 합니다.
+    # 자동 채우기를 시험할 때는 client.real_fill_in 으로 되돌립니다.
+    real_fill_in = autosync.fill_in
+    monkeypatch.setattr(autosync, "fill_in", lambda *args, **kwargs: None)
     app = build_app(tmp_path)
     app.state.official_get = fake_get
     with TestClient(app) as c:
         token = c.post("/api/auth/login", json={"password": TEST_PASSWORD}).json()["token"]
         c.headers["Authorization"] = f"Bearer {token}"
         c.calls = calls
+        c.real_fill_in = real_fill_in
         yield c
 
 
@@ -515,6 +520,7 @@ def holiday_response(year, *rows):
 
 @pytest.fixture
 def holiday_client(client, monkeypatch):
+    monkeypatch.setattr(autosync, "fill_in", client.real_fill_in)
     monkeypatch.setenv("HOLIDAY_API_KEY", "fake-holiday-key")
     this_year = date.today().year
 
@@ -554,6 +560,82 @@ def test_holiday_preview_does_not_save_and_save_skips_duplicates(holiday_client)
     assert c.post("/api/settings/holidays/save").json()["saved"] == 0
     assert all(i["already_saved"] for i in c.post("/api/settings/holidays/preview").json()["items"])
     assert c.get("/api/settings/vacations").json()["items"] == []  # 공휴일은 방학 목록에 섞이지 않습니다
+
+
+def test_home_fills_holidays_automatically_and_asks_only_once_a_day(holiday_client):
+    c, y = holiday_client, holiday_client.this_year
+    inner, calls = c.app.state.official_get, []
+    c.app.state.official_get = lambda url, params: calls.append(params["solYear"]) or inner(url, params)
+    assert c.get("/api/home/summary").status_code == 200
+    counts = c.get("/api/settings/holidays").json()
+    assert (counts["this_year_count"], counts["next_year_count"]) == (2, 1)
+    assert calls == [y, y + 1]
+    assert c.get("/api/home/summary").status_code == 200
+    assert calls == [y, y + 1]  # 다 채워졌으면 하루 안에는 다시 묻지 않습니다
+    assert c.post("/api/settings/holidays/save").json()["saved"] == 0  # 수동 가져오기와 겹쳐도 중복 저장 없음
+
+
+def test_auto_holidays_do_nothing_without_key_and_never_break_home(client, holiday_client, monkeypatch):
+    monkeypatch.delenv("HOLIDAY_API_KEY")
+    assert client.get("/api/home/summary").status_code == 200
+    assert client.get("/api/settings/holidays").json()["this_year_count"] == 0
+
+    def broken(url, params):
+        raise official.OfficialError("down")
+
+    monkeypatch.setenv("HOLIDAY_API_KEY", "fake-holiday-key")
+    holiday_client.app.state.official_get = broken
+    assert holiday_client.get("/api/home/summary").status_code == 200
+    assert holiday_client.get("/api/settings/holidays").json()["this_year_count"] == 0
+
+
+# ---------------------------------------------------------------- 위치를 바탕으로 자동 채우기
+def _official_vacations(c):
+    return [v for v in c.get("/api/settings/vacations").json()["items"] if v["source"] == "official"]
+
+
+def test_saving_the_location_fills_nearby_school_vacations_automatically(client, monkeypatch):
+    monkeypatch.setattr(autosync, "fill_in", client.real_fill_in)
+    assert _official_vacations(client) == []
+    set_store(client)
+    first = _official_vacations(client)
+    assert first and all("방학" in v["name"] for v in first)
+    set_store(client)  # 같은 위치를 다시 저장해도 겹쳐 저장하지 않습니다
+    assert len(_official_vacations(client)) == len(first)
+
+
+def test_moving_the_store_clears_the_old_region_and_keeps_owner_entries(client, monkeypatch):
+    monkeypatch.setattr(autosync, "fill_in", client.real_fill_in)
+    set_store(client)
+    client.post("/api/settings/vacations", json={"start_date": "2026-01-02", "end_date": "2026-01-05"})
+    client.post("/api/settings/store", json={"city": "가상시", "dong": "가상동", "latitude": STORE[0], "longitude": STORE[1], "market_days": [3, 8]})
+    assert client.get("/api/settings/store").json()["market_days"] == [3, 8]  # 같은 위치면 장날은 그대로
+    from datetime import date as _d
+    from app.models import WeatherDaily
+
+    with client.app.state.session_factory() as db:
+        db.add(WeatherDaily(day=_d(2026, 1, 1), station="옛관측소", avg_temp=1.0, rain_mm=0.0))
+        db.commit()
+    moved = client.post("/api/settings/store", json={"city": "먼시", "dong": "먼동", "latitude": 35.0, "longitude": 129.0, "market_days": [3, 8]}).json()
+    assert moved["market_days"] == []  # 옛 지역 장날은 지워집니다 (보낸 값도 따르지 않습니다)
+    assert _official_vacations(client) == []  # 옛 지역 학교 방학은 지워지고, 근처에 학교가 없어 새로 채울 것도 없음
+    items = client.get("/api/settings/vacations").json()["items"]
+    assert [v["source"] for v in items] == ["owner"]  # 점주가 직접 넣은 방학은 남습니다
+    assert client.get("/api/settings/weather").json()["days"] == 0  # 다른 관측소의 날씨는 지워집니다
+
+
+def test_auto_fill_failure_never_breaks_saving_or_home(client, monkeypatch):
+    monkeypatch.setattr(autosync, "fill_in", client.real_fill_in)
+    inner = client.app.state.official_get
+
+    def broken(url, params):
+        if url == official.NEIS_SCHOOL_INFO_URL:
+            raise official.OfficialError("down")
+        return inner(url, params)
+
+    client.app.state.official_get = broken
+    assert set_store(client).status_code == 200
+    assert client.get("/api/home/summary").status_code == 200
 
 
 def test_holiday_failure_is_502_without_key_and_requires_login(holiday_client):

@@ -131,6 +131,23 @@ def test_weather_sync_saves_only_missing_days_and_reports_station(client, monkey
     assert client.post("/api/settings/weather/sync").json()["added"] == 0  # 이미 있는 날은 다시 받지 않습니다
 
 
+def test_saving_the_location_fills_weather_and_moving_drops_other_station_rows(client, monkeypatch):
+    monkeypatch.setenv("WEATHER_PAST_API_KEY", "fake-key")
+    seed(client, 5, with_weather=False)
+    def fake(url, params):
+        name = "인천" if params["stnIds"] == 112 else "다른관측소"
+        rows = [{"tm": (START + timedelta(days=i)).isoformat(), "stnNm": name, "avgTa": str(i), "sumRn": "0"} for i in range(5)]
+        return {"response": {"header": {"resultCode": "00"}, "body": {"items": {"item": rows}}}}
+
+    client.app.state.official_get = fake
+    client.post("/api/settings/store", json={"latitude": 37.37, "longitude": 126.79})
+    assert client.get("/api/settings/weather").json()["days"] == 5  # 설정에서 누르지 않아도 위치를 저장하면 채워집니다
+    assert client.get("/api/home/summary").status_code == 200
+    client.post("/api/settings/store", json={"latitude": 36.35, "longitude": 127.38})  # 대전: 다른 관측소
+    after = client.get("/api/settings/weather").json()
+    assert after["stations"] == ["다른관측소"]  # 옛 관측소 날씨는 지워지고 새 관측소 것으로 다시 채워집니다
+
+
 def test_weather_sync_requires_key_location_and_login(client, monkeypatch):
     assert client.post("/api/settings/weather/sync").json() == {"status": "no_location"}
     client.post("/api/settings/store", json={"latitude": 37.37, "longitude": 126.79})

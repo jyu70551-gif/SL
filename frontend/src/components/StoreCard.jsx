@@ -73,19 +73,22 @@ export default function StoreCard({ onChange, locationOnly = false, title = "우
     }
   }
 
-  // 후보를 고르면 시·군·구, 동, 좌표가 채워집니다. [저장]을 눌러야 실제로 저장됩니다.
+  // 후보를 고르면 시·군·구, 동, 좌표가 채워지고 바로 저장됩니다. (고른 것이 곧 저장이라 [저장]을 따로 누를 필요가 없어요)
   function pick(item) {
     setCity(item.city);
     setDong(item.dong);
     setCoords(`${item.latitude}, ${item.longitude}`);
-    setPicked(item.label);
     setSearch({ status: "idle", items: [] });
-    setState("idle");
+    persist({ city: item.city, dong: item.dong, coordsText: `${item.latitude}, ${item.longitude}`, label: item.label });
   }
 
-  async function save(event) {
+  function save(event) {
     event.preventDefault();
-    const parsed = parseCoords(coords);
+    persist();
+  }
+
+  async function persist(next = {}) {
+    const parsed = parseCoords(next.coordsText ?? coords);
     if (parsed === undefined) {
       setErrorText("위도와 경도를 '37.5000, 127.0000'처럼 두 숫자로 입력해 주세요.");
       setState("failed");
@@ -95,15 +98,22 @@ export default function StoreCard({ onChange, locationOnly = false, title = "우
     try {
       const saved = await request("/api/settings/store", {
         method: "POST",
-        body: { city, dong, market_days: marketDays, latitude: parsed?.latitude ?? null, longitude: parsed?.longitude ?? null },
+        body: { city: next.city ?? city, dong: next.dong ?? dong, market_days: marketDays, latitude: parsed?.latitude ?? null, longitude: parsed?.longitude ?? null },
       });
       setStore(saved);
       setCity(saved.city);
       setDong(saved.dong);
       setCoords(saved.latitude == null ? "" : `${saved.latitude}, ${saved.longitude}`);
       setMarketDays(saved.market_days);
-      setPicked("");
+      setPicked(next.label ?? "");
       setState("saved");
+      // 위치가 바뀌었으니 홈의 AI 점검 요약은 옛 지역 기준입니다. 기억해 둔 것을 지우고, 홈에 가면 새로 만들게 표시합니다.
+      try {
+        sessionStorage.removeItem("sl.aiSummary");
+        sessionStorage.setItem("sl.aiRefresh", "1");
+      } catch {
+        /* 저장이 막혀 있어도 화면은 정상입니다 */
+      }
       onChange?.(saved);
     } catch (e) {
       setErrorText(ERROR_TEXT[e.detail?.code] ?? "저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.");
@@ -117,12 +127,12 @@ export default function StoreCard({ onChange, locationOnly = false, title = "우
       {state === "loading" && <p className="card-note">불러오는 중…</p>}
       {store && (
         <form className="settings-form" onSubmit={save}>
-          <label htmlFor="store-city">시·군·구</label>
-          <input id="store-city" value={city} maxLength={40} placeholder="예: 가상시" onChange={(e) => { setCity(e.target.value); setState("idle"); }} />
-          <label htmlFor="store-dong">동</label>
-          <input id="store-dong" value={dong} maxLength={40} placeholder="예: 가상동" onChange={(e) => { setDong(e.target.value); setState("idle"); }} />
-
-          <label htmlFor="store-address">점포 주소 검색</label>
+          {coords && (
+            <p className="store-now">
+              현재 점포 <strong>{[city, dong].filter(Boolean).join(" ") || "위치 등록됨"}</strong>
+            </p>
+          )}
+          <label htmlFor="store-address">{coords ? "다른 곳으로 바꾸려면 주소 검색" : "점포 주소 검색"}</label>
           <div className="address-search">
             <input
               id="store-address"
@@ -149,11 +159,14 @@ export default function StoreCard({ onChange, locationOnly = false, title = "우
               ))}
             </ul>
           )}
-          {picked && <p className="settings-saved">선택한 주소: {picked} — 아래 [저장]을 눌러 주세요.</p>}
-          {!picked && coords && <p className="muted">점포 위치가 등록되어 있어요. 다른 곳이면 주소를 다시 검색해 주세요.</p>}
+          {state === "saved" && picked && <p className="settings-saved">저장했어요: {picked}</p>}
 
           <details className="address-manual" open={search.status === "no_key" || search.status === "failed"}>
-            <summary>주소가 안 찾아지면 위도·경도 직접 입력</summary>
+            <summary>주소가 안 찾아지면 직접 입력 (시·군·구, 동, 위도·경도)</summary>
+            <label htmlFor="store-city">시·군·구</label>
+            <input id="store-city" value={city} maxLength={40} placeholder="예: 가상시" onChange={(e) => { setCity(e.target.value); setState("idle"); }} />
+            <label htmlFor="store-dong">동</label>
+            <input id="store-dong" value={dong} maxLength={40} placeholder="예: 가상동" onChange={(e) => { setDong(e.target.value); setState("idle"); }} />
             <label htmlFor="store-coords">점포 위치 (위도, 경도)</label>
             <input
               id="store-coords"
@@ -163,8 +176,13 @@ export default function StoreCard({ onChange, locationOnly = false, title = "우
               onChange={(e) => { setCoords(e.target.value); setPicked(""); setState("idle"); }}
             />
             <p className="muted">지도 앱(네이버·카카오·구글)에서 점포 위치를 길게 누르면 나오는 위도·경도를 복사해 붙여 넣으세요.</p>
+            {locationOnly && (
+              <button type="submit" className="button secondary" disabled={state === "saving"}>
+                입력한 값 저장
+              </button>
+            )}
           </details>
-          <p className="muted">위치는 근처 학교를 찾을 때만 써요.</p>
+          <p className="muted">위치는 근처 학교, 장, 날씨와 주변 상권을 찾을 때 써요.</p>
 
           {!locationOnly && (
           <fieldset className="settings-fieldset">
@@ -198,10 +216,13 @@ export default function StoreCard({ onChange, locationOnly = false, title = "우
           </fieldset>
           )}
 
-          <button type="submit" className="button" disabled={state === "saving"}>
-            저장
-          </button>
-          {state === "saved" && <p className="settings-saved">저장했어요.</p>}
+          {!locationOnly && (
+            <button type="submit" className="button" disabled={state === "saving"}>
+              저장
+            </button>
+          )}
+          {state === "saving" && <p className="muted">저장하는 중…</p>}
+          {state === "saved" && !picked && <p className="settings-saved">저장했어요.</p>}
           {state === "failed" && <p className="error" role="alert">{errorText || "저장하지 못했어요. 잠시 뒤 다시 시도해 주세요."}</p>}
         </form>
       )}
