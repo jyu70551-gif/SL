@@ -39,6 +39,7 @@ Start-Sleep -Seconds 1
 
 if ($Reset -or -not (Test-Path $demoDb)) {
     Write-Host "시연 DB를 만드는 중이에요 (1분 안팎)..."
+    $env:PYTHONIOENCODING = "utf-8"  # 콘솔이 cp949여도 안내 글의 특수문자(—)에서 멈추지 않게
     & $python (Join-Path $backend "tools\make_lab_data.py") --demo
     if ($LASTEXITCODE -ne 0) { throw "시연 DB를 만들지 못했어요. (.sl-history\데이터_가져오기\csv 폴더가 있어야 해요)" }
 }

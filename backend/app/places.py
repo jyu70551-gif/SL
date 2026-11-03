@@ -17,6 +17,7 @@ CATEGORIES = [
 ]
 SCHOOL_KINDS = ["초등학교", "중학교", "고등학교", "대학교"]
 NEAR_SCHOOLS = 3
+SEARCH_SIZE = 15  # 카카오가 한 번에 주는 최대 개수
 TTL_SECONDS = 24 * 3600
 _cache: dict = {}
 
@@ -25,11 +26,30 @@ def school_kind(name: str) -> str:
     for kind in SCHOOL_KINDS:
         if name.endswith(kind):
             return kind
-    return "대학교" if name.endswith("대학") else "기타 학교"
+    if "대학교" in name or name.endswith("대학"):  # "○○대학교 사범대학"처럼 대학교 안의 시설도 대학교로 봅니다
+        return "대학교"
+    return "기타 학교"
+
+
+def school_key(name: str) -> str:
+    """같은 학교로 셀 이름. 카카오는 대학 안의 단과대학·캠퍼스를 따로 알려 주기 때문에 "○○대학교"까지만 씁니다."""
+    head, sep, _ = name.partition("대학교")
+    return head + sep if sep else name
+
+
+def distinct_schools(items: list[dict]) -> list[dict]:
+    """가까운 순서로 온 학교 목록에서 같은 학교를 한 번만 남깁니다."""
+    seen, out = set(), []
+    for item in items:
+        key = school_key(item["name"])
+        if key not in seen:
+            seen.add(key)
+            out.append({**item, "name": key})
+    return out
 
 
 def _search(get, key: str, lat: float, lon: float, code: str, radius: int) -> dict:
-    return get(CATEGORY_URL, {"category_group_code": code, "x": lon, "y": lat, "radius": radius, "size": 15, "sort": "distance"}, key)
+    return get(CATEGORY_URL, {"category_group_code": code, "x": lon, "y": lat, "radius": radius, "size": SEARCH_SIZE, "sort": "distance"}, key)
 
 
 def survey(get, key: str, lat: float, lon: float) -> dict:
@@ -52,9 +72,12 @@ def survey(get, key: str, lat: float, lon: float) -> dict:
                 schools[radius].append({"name": str(doc.get("place_name", "")), "distance_m": int(float(doc.get("distance") or 0))})
     kinds = {r: {} for r in RADII}
     for radius, items in schools.items():
-        for item in items:
+        unique = distinct_schools(items)
+        for item in unique:
             kinds[radius][school_kind(item["name"])] = kinds[radius].get(school_kind(item["name"]), 0) + 1
-    near = [{"name": s["name"], "kind": school_kind(s["name"]), "distance_m": s["distance_m"]} for s in schools[RADII[0]][:NEAR_SCHOOLS]]
+        if counts[radius].get("학교", 0) <= SEARCH_SIZE:  # 목록이 전부 왔을 때만 중복을 뺀 학교 수로 바로잡습니다
+            counts[radius]["학교"] = len(unique)
+    near = [{"name": s["name"], "kind": school_kind(s["name"]), "distance_m": s["distance_m"]} for s in distinct_schools(schools[RADII[0]])[:NEAR_SCHOOLS]]
     result = {"counts": counts, "schools": near, "school_kinds": kinds}
     _cache[cache_key] = (time.monotonic(), result)
     return result

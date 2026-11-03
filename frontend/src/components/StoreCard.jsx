@@ -25,7 +25,7 @@ const ERROR_TEXT = {
 
 // onChange(store): 불러왔을 때와 저장했을 때 현재 저장된 점포 정보를 알려 줍니다. (처음 설정 화면이 완료 단추를 열 때 씁니다)
 // locationOnly: 장날 입력을 숨깁니다. (처음 설정에서는 위치만 받고, 장날은 설정 화면에서 입력)
-export default function StoreCard({ onChange, locationOnly = false }) {
+export default function StoreCard({ onChange, locationOnly = false, title = "우리 점포" }) {
   const [store, setStore] = useState(null);
   const [city, setCity] = useState("");
   const [dong, setDong] = useState("");
@@ -113,7 +113,7 @@ export default function StoreCard({ onChange, locationOnly = false }) {
 
   const preset = PRESETS.find((p) => p.days.length === marketDays.length && p.days.every((d, i) => d === marketDays[i]));
   return (
-    <Card title="우리 점포">
+    <Card title={title}>
       {state === "loading" && <p className="card-note">불러오는 중…</p>}
       {store && (
         <form className="settings-form" onSubmit={save}>

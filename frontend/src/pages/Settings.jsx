@@ -6,6 +6,7 @@ import MarketCard from "../components/MarketCard.jsx";
 import WeatherCard from "../components/WeatherCard.jsx";
 import PasswordCard from "../components/PasswordCard.jsx";
 import SchoolVacationCard from "../components/SchoolVacationCard.jsx";
+import StoreCard from "../components/StoreCard.jsx";
 
 function Sensitivity() {
   const [data, setData] = useState(null);
@@ -71,6 +72,8 @@ export default function Settings() {
   return (
     <section>
       <h1 className="page-title">설정</h1>
+      {/* 임시: 시험하는 동안 지역을 바꿔 보려고 둔 칸입니다. 출시 전에 지웁니다. (docs/plan.md) */}
+      <StoreCard locationOnly title="점포 위치 다시 고르기 (시험용 임시)" />
       <SchoolVacationCard />
       <MarketCard />
       <HolidayCard />

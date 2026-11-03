@@ -237,3 +237,78 @@ def test_requires_login_and_never_leaks_keys(setup):
     text = client.post("/api/suggestions", json={}).text
     assert "fake-kakao" not in text and "fake-weather" not in text
     assert TestClient(client.app).post("/api/suggestions", json={}).status_code == 401
+
+
+# ---------------------------------------------------------------- 학생 상권, 대학
+def test_student_area_fact_joins_schools_and_says_it_is_an_estimate(setup):
+    facts = facts_of(setup(FakeLLM()))
+    text = facts["students"]["text"]
+    assert "초등학교 1곳, 중학교 1곳, 고등학교 1곳" in text and "여러 학교가 가까워서" in text
+    assert "학생·수강생 손님의 영향을 받을 수 있는 상권" in text and "일반적인 추정" in text and "가상초등학교(120m)" in text
+    assert "학원 10곳" in text and "오후와 저녁" in text
+    assert "university" not in facts  # 500m 안에는 대학이 없음
+
+
+def test_no_school_nearby_is_stated_and_no_university_fact(setup, monkeypatch):
+    def empty(url, params, key):
+        return {"meta": {"total_count": 0}, "documents": []}
+
+    client = setup(FakeLLM())
+    client.app.state.kakao_get = empty
+    places._cache.clear()
+    facts = facts_of(client)
+    assert "학교가 없어서" in facts["students"]["text"] and "university" not in facts
+
+
+def test_campus_buildings_count_as_one_university_and_get_a_rough_break_note(setup):
+    def campus(url, params, key):
+        docs = []
+        if params["category_group_code"] == "SC4":
+            docs = [kakao_doc("가상대학교", 200), kakao_doc("가상대학교 사범대학", 220), kakao_doc("가상대학교 제2캠퍼스", 260), kakao_doc("가상전문대학", 400)]
+        return {"meta": {"total_count": len(docs)}, "documents": docs}
+
+    client = setup(FakeLLM())
+    client.app.state.kakao_get = campus
+    places._cache.clear()
+    facts = facts_of(client)
+    assert "대학교 2곳" in facts["students"]["text"] and "가상대학교(200m)" in facts["schools:near"]["text"]
+    assert "학교 2곳" in facts["places:500"]["text"]
+    assert "학교마다 달라서 어림" in facts["university"]["text"]
+
+
+@pytest.mark.parametrize("today, expected", [
+    (date(2026, 7, 10), "보통 지금쯤 방학"),
+    (date(2027, 1, 15), "보통 지금쯤 방학"),
+    (date(2026, 11, 2), "49일 뒤쯤"),  # 12월 21일까지
+    (date(2026, 4, 1), "81일 뒤쯤"),  # 6월 21일까지
+])
+def test_university_break_is_a_rough_calendar_estimate(today, expected):
+    assert expected in suggestions.university_break_text(today)
+
+
+def _area(schools, academies):
+    return {"school_kinds": {500: {"초등학교": schools} if schools else {}}, "counts": {500: {"학원": academies}},
+            "schools": [{"name": "가상초등학교", "kind": "초등학교", "distance_m": 100}] if schools else []}
+
+
+@pytest.mark.parametrize("schools, academies, expected, absent", [
+    (0, 5, ["학원 5곳", "학원이 모여 있어서", "오후와 저녁"], ["학교가 가까워서", "가장 가까운 학교"]),  # 학교 없이 학원가만
+    (0, 4, ["학교가 없어서", "학원은 4곳"], ["영향을 받을 수 있는"]),  # 기준(5곳) 미만
+    (2, 0, ["초등학교 2곳", "학교가 가까워서"], ["학원", "오후와 저녁"]),  # 학원 없이 학교만
+    (3, 12, ["초등학교 3곳", "학원 12곳", "여러 학교가 가까워서", "오후와 저녁"], []),
+])
+def test_students_fact_uses_schools_or_academies(schools, academies, expected, absent):
+    text = suggestions.student_facts(_area(schools, academies), TODAY)[0]["text"]
+    assert all(part in text for part in expected) and not any(part in text for part in absent)
+
+
+def test_cards_on_the_same_core_fact_are_merged_into_the_first(setup):
+    def overlapping(system, user):
+        return {"cards": [
+            {"title": "학생 간식 진열", "body": "근처에 학교가 3곳 있어서 간식을 모아 두면 좋아요.", "fact_ids": ["students", "places:500"]},
+            {"title": "방과 후 준비", "body": "근처에 학교가 3곳 있어서 저녁 재고를 살펴보면 좋아요.", "fact_ids": ["students", "schools:near"]},
+            {"title": "내일은 우산 챙겨 두세요", "body": "내일 비 소식이 있어서 우산을 놓아 보세요.", "fact_ids": ["weather:내일"]},
+        ]}
+
+    body = setup(FakeLLM([overlapping])).post("/api/suggestions", json={}).json()
+    assert body["status"] == "ok" and [c["title"] for c in body["cards"]] == ["학생 간식 진열", "내일은 우산 챙겨 두세요"]
