@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError, request } from "../api.js";
 import AnomalyCard from "../components/AnomalyCard.jsx";
-import { BasisToggle, Card, NeedMore } from "../components/Card.jsx";
+import { Card, NeedMore } from "../components/Card.jsx";
 import { DiffLine } from "../components/Change.jsx";
 import ForecastCard from "../components/ForecastCard.jsx";
 import { StreetScene } from "../components/StoreScene.jsx";
 import SuggestCard from "../components/SuggestCard.jsx";
+import StockSignals from "../components/StockSignals.jsx";
 import { ArrowLink } from "../components/Icons.jsx";
 import { count, hourLabel, isToday, longDate, monthDay, periodLabel, shortDate, won } from "../format.js";
 
@@ -123,61 +124,6 @@ function TodayBand({ data, attention }) {
   );
 }
 
-// 비교 범위는 "지난 기록의 가장 적었던 값~가장 많았던 값"이라서 '평소'나 '정상'이라고 하지 않고 '관측 범위'라고 말합니다.
-const VERDICT = {
-  high: { text: "관측 범위보다 많음", tone: "warn" },
-  normal: { text: "관측 범위 안", tone: "ok" },
-  low: { text: "관측 범위보다 적음", tone: "warn" },
-};
-
-// 영역 3. 집중 관리 식품군: 분류 · 판매 수량 · 비교 범위 · 상태
-function FocusFood({ data }) {
-  const first = data.instant_food[0];
-  const ready = first.status === "ready";
-  return (
-    <Card title="집중 관리 식품군">
-      <div className="food-table" role="table" aria-label="집중 관리 식품군">
-        <div className="food-row food-head" role="row">
-          <span role="columnheader">분류</span>
-          <span role="columnheader">판매 수량</span>
-          <span role="columnheader">과거 관측 범위</span>
-          <span role="columnheader">상태</span>
-        </div>
-        {data.instant_food.map((item) => {
-          const verdict = item.status === "ready" ? VERDICT[item.verdict] : null;
-          return (
-            <div className="food-row" role="row" key={item.category}>
-              <span className="food-name" role="cell">
-                {item.category}
-              </span>
-              <span className="food-qty" role="cell" data-label="판매 수량">
-                {count(item.today_quantity)}
-              </span>
-              <span className="food-range" role="cell" data-label="과거 관측 범위">
-                {verdict ? `${item.range_min}~${item.range_max}개` : "—"}
-              </span>
-              <span className={`verdict ${verdict ? verdict.tone : "none"}`} role="cell">
-                {verdict ? verdict.text : "판단 자료 부족"}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      {ready ? (
-        <BasisToggle summary={`최근 같은 ${data.weekday}요일 ${first.weeks_used}번 기준`}>
-          <p>
-            과거 관측 범위는 같은 {data.weekday}요일, 같은 시각({hourLabel(data.cutoff_hour)})까지 집계한 최근 {first.weeks_used}번 중 가장 적었던 값~가장
-            많았던 값이에요.
-          </p>
-          <p>통계적으로 &lsquo;정상&rsquo;이라는 뜻이 아니라 지난 기록이 움직인 폭이에요. 상품별이 아니라 대분류 기준이에요.</p>
-        </BasisToggle>
-      ) : (
-        <NeedMore comparison={first} weekday={data.weekday} />
-      )}
-    </Card>
-  );
-}
-
 function EmptyCard() {
   return (
     <Card title="아직 올린 파일이 없어요">
@@ -212,10 +158,25 @@ function SetupReminder() {
   );
 }
 
+// 화면 폭이 컴퓨터용인지 알려 줍니다. 카드의 읽는 순서가 컴퓨터와 휴대폰에서 다르므로, CSS 로 순서를 바꾸지 않고
+// 보이는 순서와 같은 순서로 카드를 그려서 키보드(Tab) 이동 순서도 눈에 보이는 순서와 같게 합니다.
+function useWide() {
+  const query = "(min-width: 1024px)";
+  const [wide, setWide] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const onChange = () => setWide(media.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+  return wide;
+}
+
 export default function Home() {
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState(false);
   const [attention, setAttention] = useState(null); // { total, today } 확인할 사항 건수 (요약 띠에 씁니다)
+  const wide = useWide();
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -230,50 +191,56 @@ export default function Home() {
     load();
   }, [load]);
 
+  const notices = (
+    <>
+      {failed && (
+        <Card title="숫자를 불러오지 못했어요">
+          <p className="card-note">서버에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.</p>
+          <button type="button" className="button secondary" onClick={load}>
+            다시 시도
+          </button>
+        </Card>
+      )}
+      {!failed && data === null && <p className="empty-note">불러오는 중…</p>}
+      {data && !data.has_data && <EmptyCard />}
+    </>
+  );
+  const ready = data?.has_data;
+  const attentionCard = ready && <AnomalyCard weekday={data.weekday} onSummary={setAttention} />;
+  const stockCard = ready && <StockSignals />;
+  const forecastCard = ready && <ForecastCard />;
+
   return (
     <section className="home-page">
-      {data?.has_data && <TodayBand data={data} attention={attention} />}
+      {ready && <TodayBand data={data} attention={attention} />}
 
       <SetupReminder />
 
-      {/* 컴퓨터 화면: 왼쪽에 매출·확인할 사항, 오른쪽에 AI 제안·집중 관리·내일 예상. 휴대폰에서는 slot 번호 순서대로 한 줄로 쌓입니다. */}
-      <div className="home-grid">
-        <div className="home-col">
-          {failed && (
-            <Card title="숫자를 불러오지 못했어요">
-              <p className="card-note">서버에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.</p>
-              <button type="button" className="button secondary" onClick={load}>
-                다시 시도
-              </button>
-            </Card>
-          )}
-
-          {!failed && data === null && <p className="empty-note">불러오는 중…</p>}
-
-          {data && !data.has_data && <EmptyCard />}
-
-          {data?.has_data && (
-            <div className="slot slot-attention">
-              <AnomalyCard weekday={data.weekday} onSummary={setAttention} />
+      {/* 컴퓨터: 위쪽 두 칸(왼쪽 확인할 사항 60%, 오른쪽 AI 점검 요약과 내일 예상 매출 40%) 아래에 식품 발주 점검이 전체 너비로 옵니다.
+          휴대폰: 확인할 사항 → 식품 발주 점검 → AI 점검 요약 → 내일 예상 매출 순서로 한 줄씩 쌓입니다. */}
+      {wide ? (
+        <>
+          <div className="ops-grid">
+            <div className="ops-col">
+              {notices}
+              {attentionCard}
             </div>
-          )}
-        </div>
-        <div className="home-col">
-          <div className="slot slot-ai">
-            <SuggestCard />
+            <div className="ops-col">
+              <SuggestCard />
+              {forecastCard}
+            </div>
           </div>
-          {data?.has_data && (
-            <>
-              <div className="slot slot-focus">
-                <FocusFood data={data} />
-              </div>
-              <div className="slot slot-forecast">
-                <ForecastCard />
-              </div>
-            </>
-          )}
+          {stockCard}
+        </>
+      ) : (
+        <div className="home-stack">
+          {notices}
+          {attentionCard}
+          {stockCard}
+          <SuggestCard />
+          {forecastCard}
         </div>
-      </div>
+      )}
     </section>
   );
 }

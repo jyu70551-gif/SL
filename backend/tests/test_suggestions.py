@@ -314,3 +314,62 @@ def test_cards_on_the_same_core_fact_are_merged_into_the_first(setup):
 
     body = setup(FakeLLM([overlapping])).post("/api/suggestions", json={}).json()
     assert body["status"] == "ok" and [c["title"] for c in body["cards"]] == ["학생 간식 진열", "내일은 우산 챙겨 두세요"]
+
+
+# ---------------------------------------------------------------- 판매·품절·폐기 분석(입출고)을 외부 정보보다 먼저
+def _load_stock(client, end=None):
+    from datetime import timedelta
+
+    from app import stock
+    from tools import make_stock_data
+
+    end = end or (TODAY - timedelta(days=1))
+    rows, _ = make_stock_data.build(3, 40, start=end - timedelta(days=39))
+    with client.app.state.session_factory() as db:
+        stock.save_records(db, stock.parse_stock_csv(make_stock_data.to_csv(rows)))
+
+
+def test_without_stock_records_the_analysis_fact_says_it_is_unknown(setup):
+    facts = facts_of(setup(FakeLLM()))
+    assert "stock:nodata" in facts and "알 수 없어요" in facts["stock:nodata"]["text"]
+    assert facts["stock:nodata"]["group"] == suggestions.STOCK_GROUP
+
+
+def test_stock_signals_become_plain_facts_from_the_computed_numbers(setup):
+    client = setup(FakeLLM())
+    _load_stock(client)
+    facts = facts_of(client)
+    assert facts["stock:F001"]["text"] == "참치마요 삼각김밥: 행사 없이 판매를 마친 최근 5회 중 5회 일찍 품절됐고 소진율 100%, 폐기율 0%예요."
+    assert "폐기가 20% 이상이었고" in facts["stock:F003"]["text"]
+    assert "행사 중에는 소진율 100%, 행사 없는 기간에는 82%였어요" in facts["stock:F004"]["text"] and "확정할 수는 없어요" in facts["stock:F004"]["text"]
+    assert "stock:F002" not in facts and "stock:F005" not in facts  # 신호가 없는 상품은 사실로 만들지 않습니다
+    assert all(f["group"] == suggestions.STOCK_GROUP for fid, f in facts.items() if fid.startswith("stock:"))
+
+
+def test_analysis_cards_come_first_and_are_marked_apart_from_ideas(setup, monkeypatch):
+    monkeypatch.delenv("SL_LAB_MODE", raising=False)
+
+    def mixed(system, user):
+        return {"cards": [
+            {"title": "내일은 우산 챙겨 두세요", "body": "내일 비 소식이 있어서 계산대 옆에 우산을 놓아 보세요.", "fact_ids": ["weather:내일"]},
+            {"title": "삼각김밥 수량 점검", "body": "참치마요 삼각김밥이 최근 5회 일찍 품절됐어요. 소량 바꿔 보고 확인해 보세요.", "fact_ids": ["stock:F001"]},
+        ]}
+
+    client = setup(FakeLLM(default=mixed))
+    _load_stock(client)
+    out = client.post("/api/suggestions", json={}).json()
+    assert out["status"] == "ok" and out["demo"] is False
+    assert [c["kind"] for c in out["cards"]] == ["analysis", "idea"]
+    assert out["cards"][0]["title"] == "삼각김밥 수량 점검"
+    monkeypatch.setenv("SL_LAB_MODE", "1")
+    assert client.post("/api/suggestions", json={"refresh": True}).json()["demo"] is True  # 시연이면 분석은 가짜 자료라고 알림
+
+
+def test_a_card_that_mixes_analysis_and_outside_facts_is_refused(setup):
+    def mixing(system, user):
+        return {"cards": [{"title": "삼각김밥과 비 소식", "body": "내일 비 소식이 있고 삼각김밥이 일찍 품절됐어요. 소량 바꿔 보세요.", "fact_ids": ["stock:F001", "weather:내일"]}]}
+
+    client = setup(FakeLLM(default=mixing))
+    _load_stock(client)
+    out = client.post("/api/suggestions", json={}).json()
+    assert out["status"] == "failed" and any("섞었어요" in r for r in out["reasons"])

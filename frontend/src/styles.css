@@ -1696,7 +1696,7 @@ a {
   position: absolute;
   width: 1px;
   height: 1px;
-  margin: -1px;
+  margin: 0;
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
@@ -2947,5 +2947,493 @@ textarea:focus-visible {
 
   .settings-body {
     padding: 24px;
+  }
+}
+
+/* 집중 관리 식품군 안의 상품별 소진율·폐기율·신호 */
+.stock-block {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.stock-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+}
+
+.stock-item {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.stock-item:first-child {
+  border-top: 0;
+}
+
+.stock-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.stock-name {
+  overflow-wrap: anywhere;
+}
+
+.stock-badge {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.stock-badge.warn {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 50%, var(--line));
+}
+
+.stock-badge.ok {
+  color: var(--up);
+  border-color: color-mix(in srgb, var(--up) 40%, var(--line));
+}
+
+.stock-badge.note {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+
+.stock-badge.none {
+  color: var(--muted);
+}
+
+.stock-line {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.stock-qty {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.stock-reasons {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.stock-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.stock-title .group-title {
+  margin: 0;
+}
+
+.stock-demo {
+  padding: 2px 10px;
+  border: 1px dashed var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.stock-days {
+  margin: 4px 0 8px;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.stock-item .basis-panel p {
+  margin: 6px 0;
+}
+
+.stock-reason {
+  margin: 6px 0 4px;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* =====================================================================
+   홈 레이아웃 재구성 (2026-11-03)
+   컴퓨터: 매출 요약(전체) → [확인할 사항 60% | AI 점검 요약 + 내일 예상 매출 40%] → 식품 발주 점검(전체)
+   휴대폰: 한 줄로 쌓기. 카드 순서는 CSS order 가 아니라 Home.jsx 가 그리는 순서입니다(키보드 순서 = 보이는 순서).
+   카드 높이를 고정하거나 min-height 로 빈 곳을 채우지 않고, 음수 마진·절대 위치도 쓰지 않습니다. 카드 사이 간격은 24px 입니다.
+   ===================================================================== */
+.home-page .card {
+  margin: 0 0 24px;
+}
+
+.home-stack {
+  display: block;
+}
+
+.ops-col {
+  min-width: 0;
+}
+
+.band {
+  margin-bottom: 24px;
+}
+
+@media (min-width: 1024px) {
+  .ops-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: 0 24px;
+    align-items: start;
+  }
+}
+
+/* 식품 발주 점검: 컴퓨터에서는 열을 맞춘 행, 휴대폰에서는 상품별 세로 목록 */
+.stock-cols {
+  display: none;
+}
+
+.stock-item {
+  padding: 14px 0;
+}
+
+.stock-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name badge"
+    "why why"
+    "sell waste"
+    "more more";
+  gap: 4px 12px;
+  align-items: start;
+}
+
+.stock-row .stock-name { grid-area: name; }
+.stock-row .stock-badge { grid-area: badge; justify-self: end; }
+.stock-row .stock-why { grid-area: why; min-width: 0; }
+.stock-row .stock-sell { grid-area: sell; }
+.stock-row .stock-waste { grid-area: waste; justify-self: end; }
+.stock-row .stock-more { grid-area: more; justify-self: start; }
+
+.stock-why p {
+  margin: 0 0 4px;
+}
+
+.stock-why .stock-reason {
+  margin: 0 0 4px;
+}
+
+.stock-next {
+  color: var(--muted);
+}
+
+.stock-rate-label {
+  margin-right: 6px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+@media (min-width: 900px) {
+  .stock-cols,
+  .stock-row {
+    display: grid;
+    grid-template-columns: minmax(150px, 1.1fr) minmax(0, 3fr) 96px 96px 128px 96px;
+    grid-template-areas: "name why sell waste badge more";
+    gap: 0 16px;
+    align-items: start;
+  }
+
+  .stock-cols {
+    margin-top: 12px;
+    padding: 0 0 8px;
+    border-bottom: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.875rem;
+  }
+
+  .stock-row .stock-badge,
+  .stock-row .stock-more {
+    justify-self: start;
+  }
+
+  .stock-row .stock-waste {
+    justify-self: start;
+  }
+
+  .stock-rate-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
+.ai-section + .ai-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.ai-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.ai-section .group-title {
+  margin: 0 0 2px;
+}
+
+.stock-row {
+  cursor: pointer;
+}
+
+/* 요즘 뜨는 식품 탭 */
+.trends-page {
+  display: block;
+}
+
+.trend-top {
+  margin-bottom: 16px;
+}
+
+.trend-top .page-title {
+  margin-bottom: 8px;
+}
+
+.trend-mode {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+
+.trend-mode.demo {
+  border: 1px dashed var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--text);
+}
+
+.trend-mode.real strong {
+  color: var(--up);
+}
+
+.trend-meta {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 8px;
+}
+
+.trend-meta > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+
+.trend-meta dt {
+  min-width: 5.5em;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.trend-meta dd {
+  margin: 0;
+  flex: 1 1 260px;
+  overflow-wrap: anywhere;
+}
+
+.trend-warn {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--warn) 50%, var(--line));
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.trend-warn p {
+  margin: 4px 0;
+}
+
+.trend-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 16px;
+}
+
+.trend-sort {
+  display: flex;
+  gap: 8px;
+}
+
+.trend-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+}
+
+.trend-grid {
+  display: grid;
+  gap: 24px;
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.trend-card {
+  margin: 0;
+}
+
+.trend-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.trend-name {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.trend-change {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.trend-change.up {
+  color: var(--up);
+}
+
+.trend-change.down {
+  color: var(--down, #b83f2a);
+}
+
+.trend-change.none {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.trend-counts {
+  margin: 8px 0 0;
+}
+
+.trend-basis {
+  margin: 2px 0 8px;
+}
+
+.spark {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  height: 36px;
+  margin: 4px 0 8px;
+}
+
+.spark-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.spark-dot {
+  fill: var(--accent);
+}
+
+.spark-split {
+  stroke: var(--line);
+  stroke-dasharray: 3 3;
+}
+
+.trend-excluded {
+  margin: 4px 0 8px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.trend-summary {
+  margin: 8px 0;
+  font-weight: 600;
+}
+
+.trend-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 8px;
+}
+
+.trend-detail h4 {
+  margin: 12px 0 2px;
+}
+
+.trend-evidence {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+.trend-evidence li {
+  margin-bottom: 10px;
+}
+
+.trend-evidence p {
+  margin: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+.trend-kind {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.875rem;
+}
+
+.trend-kind.official {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.trend-out {
+  margin: 8px 0 24px;
+}
+
+.trend-out summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  .trend-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
   }
 }

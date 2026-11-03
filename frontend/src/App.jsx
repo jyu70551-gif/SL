@@ -8,6 +8,7 @@ import Reviewed from "./pages/Reviewed.jsx";
 import SalesAnalysis from "./pages/SalesAnalysis.jsx";
 import SalesDetail from "./pages/SalesDetail.jsx";
 import Settings from "./pages/Settings.jsx";
+import Trends from "./pages/Trends.jsx";
 import Setup from "./pages/Setup.jsx";
 import Upload from "./pages/Upload.jsx";
 
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="sales" element={<SalesDetail />} />
         <Route path="sales/analysis" element={<SalesAnalysis />} />
         <Route path="upload" element={<Upload />} />
+        <Route path="trends" element={<Trends />} />
         <Route path="settings" element={<Settings />} />
         <Route path="setup" element={<Setup />} />
         <Route path="*" element={<Navigate to="/" replace />} />

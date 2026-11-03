@@ -5,6 +5,7 @@ import { request } from "../api.js";
 const TABS = [
   { to: "/", label: "홈", end: true },
   { to: "/upload", label: "파일 올리기" },
+  { to: "/trends", label: "요즘 뜨는 식품" },
   { to: "/settings", label: "설정" },
 ];
 
@@ -55,7 +56,7 @@ export default function Layout() {
         ))}
       </nav>
       {/* 컴퓨터 화면에서는 홈만 2단으로 넓게 씁니다. 나머지 화면은 읽기 좋은 폭으로 가운데에 둡니다. */}
-      <main className={location.pathname === "/" ? "app-main wide" : "app-main"}>
+      <main className={["/", "/trends"].includes(location.pathname) ? "app-main wide" : "app-main"}>
         <Outlet />
       </main>
     </div>

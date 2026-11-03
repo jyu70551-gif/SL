@@ -50,6 +50,19 @@ function remember(data) {
   }
 }
 
+function CardList({ cards }) {
+  return (
+    <ol className="suggest-list">
+      {cards.map((card) => (
+        <li key={card.title} className="suggest-item">
+          <strong className="suggest-title">{card.title}</strong>
+          <p className="suggest-body">{card.body}</p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function FactList({ facts }) {
   const groups = [...new Set(facts.map((f) => f.group))];
   return (
@@ -97,6 +110,9 @@ export default function SuggestCard() {
 
   const ok = state === "done" && data?.status === "ok";
   const cards = ok ? data.cards.slice(0, 3) : [];
+  // 기억해 둔 예전 결과에는 종류 표시(kind)가 없어서, 없으면 외부 정보 아이디어로 봅니다.
+  const analysis = cards.filter((card) => card.kind === "analysis");
+  const ideas = cards.filter((card) => card.kind !== "analysis");
   const used = ok ? data.cards.flatMap((c) => c.facts) : [];
   const usedFacts = [...new Map(used.map((f) => [f.id, f])).values()];
 
@@ -105,7 +121,7 @@ export default function SuggestCard() {
       <Mascot />
       {state === "idle" && (
         <>
-          <p className="card-note">날짜, 근처 학교 방학, 주변 상권, 날씨를 보고 오늘 해 볼 만한 일을 정리해 드려요. 누를 때만 만들어요.</p>
+          <p className="card-note">우리 점포 입출고 기록의 판매·품절·폐기 분석을 먼저, 날짜·방학·상권·날씨를 보고 짐작한 아이디어를 따로 정리해 드려요. 누를 때만 만들어요.</p>
           <button type="button" className="button" onClick={() => make(false)}>
             오늘 점검 요약 만들기
           </button>
@@ -139,15 +155,23 @@ export default function SuggestCard() {
 
       {ok && (
         <>
-          <ol className="suggest-list">
-            {cards.map((card) => (
-              <li key={card.title} className="suggest-item">
-                <strong className="suggest-title">{card.title}</strong>
-                <p className="suggest-body">{card.body}</p>
-              </li>
-            ))}
-          </ol>
-          <p className="card-note">외부 정보로 짐작한 아이디어예요. 판매 자료로 확인한 내용은 아니에요.</p>
+          {analysis.length > 0 && (
+            <section className="ai-section">
+              <div className="ai-section-head">
+                <h3 className="group-title">점검 요약</h3>
+                {data.demo && <span className="stock-demo">시연용 상품 데이터</span>}
+              </div>
+              <p className="card-note">우리 점포 입출고 기록으로 계산한 판매·품절·폐기 분석이에요.</p>
+              <CardList cards={analysis} />
+            </section>
+          )}
+          {ideas.length > 0 && (
+            <section className="ai-section">
+              <h3 className="group-title">추가 운영 아이디어</h3>
+              <p className="card-note">날짜·방학·상권·날씨 같은 외부 정보로 짐작한 제안이에요. 판매 자료로 확인한 내용은 아니에요.</p>
+              <CardList cards={ideas} />
+            </section>
+          )}
           <div className="basis-row">
             <button type="button" className="text-button" aria-expanded={open} onClick={() => setOpen(!open)}>
               근거 보기 {open ? "▴" : "▾"}
