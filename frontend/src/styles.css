@@ -1,24 +1,24 @@
-/* SL 디자인 틀 (docs/design.md). 어두운 테마로 고정합니다. */
+/* SL 디자인 틀 (docs/design.md). 밝은 연보라 테마입니다. (2026-11-03: 어두운 테마에서 바꿈) */
 :root {
-  color-scheme: dark;
-  --bg: #0c1019; /* 전체 배경 */
-  --surface: #151c2c; /* 카드 배경 */
-  --surface-2: #151c2c;
-  --line: #2a3346; /* 구분선·테두리 */
-  --text: #f3f5fa; /* 핵심 텍스트 */
-  --muted: #b7c0d0; /* 설명 텍스트: 어두운 배경에서도 충분히 밝은 회색 */
-  --accent: #969fff; /* 그래프·선택 상태 */
-  --accent-text: #0b0e17;
-  /* 앰버: 주요 버튼, 활성 메뉴, 확인 필요 표시에만 씁니다. 연보라는 그래프와 선택 상태에 씁니다. */
-  --amber: #f6b94a;
-  --amber-text: #1a1204;
-  --down: #ff8a8a;
-  --up: #5be0a0;
-  /* 매출 변화 방향 색: 증가 민트, 감소 코랄. 방향만 뜻하며 정상·주의 판정 색(회색 ✓, 앰버 ⚠)과 다릅니다. */
-  --rise: #47d7ac;
-  --fall: #ff8a75;
-  --ok: #d3d9e8; /* 정상·기록 완료 표시(✓)는 방향 색과 겹치지 않게 중립색을 씁니다 */
-  --warn: var(--amber); /* 확인 필요 표시. 항상 ⚠ 아이콘과 문구를 함께 씁니다 */
+  color-scheme: light;
+  --bg: #e8e2fb; /* 전체 배경: 연보라 */
+  --surface: #ffffff; /* 카드 배경 */
+  --surface-2: #f5f2ff;
+  --line: #d8d0f0; /* 구분선·테두리 */
+  --text: #20123a; /* 핵심 텍스트: 아주 진한 보라 */
+  --muted: #5b5276; /* 설명 텍스트 (흰 바탕·연보라 바탕 모두 4.5:1 이상) */
+  --accent: #5b2a9d; /* 진한 보라: 메뉴 바탕, 링크, 그래프, 선택 상태 */
+  --accent-text: #ffffff;
+  /* 라임은 주요 버튼 바탕, 활성 메뉴 막대처럼 면과 선에만 씁니다. 글자색으로 쓰면 흰 바탕에서 읽기 어렵습니다. */
+  --amber: #a8d52c;
+  --amber-text: #2a0f57;
+  --down: #c0392b;
+  --up: #1f7a4d;
+  /* 매출 변화 방향 색: 증가 초록, 감소 주황빛 빨강. 방향만 뜻하며 정상·주의 판정 색(✓, ⚠)과 다릅니다. */
+  --rise: #1f7a4d;
+  --fall: #c4472f;
+  --ok: #4a4066; /* 정상·기록 완료 표시(✓)는 방향 색과 겹치지 않게 중립색을 씁니다 */
+  --warn: #a85a00; /* 확인 필요 표시. 항상 ⚠ 아이콘과 문구를 함께 씁니다 */
   --radius: 16px;
   --tab-height: 56px;
 }
@@ -104,8 +104,7 @@ a {
   bottom: 0;
   display: flex;
   justify-content: center;
-  background: var(--surface);
-  border-top: 1px solid var(--line);
+  background: var(--accent);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -116,7 +115,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.78);
   text-decoration: none;
   font-size: 0.95rem;
 }
@@ -126,7 +125,7 @@ a {
 }
 
 .tab-bar .tab.active {
-  color: var(--amber);
+  color: #ffffff;
   font-weight: 700;
 }
 
@@ -174,7 +173,7 @@ a {
   height: 8px;
   margin-right: 8px;
   border-radius: 50%;
-  background: var(--amber);
+  background: var(--warn);
   vertical-align: 0.05em;
 }
 
@@ -190,7 +189,7 @@ a {
   border-radius: 999px;
   border: 1px solid var(--line);
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(91, 42, 157, 0.05);
   font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
@@ -207,20 +206,20 @@ a {
 
 .chip.warn {
   color: var(--warn);
-  border-color: rgba(240, 179, 90, 0.4);
-  background: rgba(240, 179, 90, 0.08);
+  border-color: rgba(168, 90, 0, 0.35);
+  background: rgba(168, 90, 0, 0.09);
 }
 
 .chip.ok {
   color: var(--up);
-  border-color: rgba(91, 224, 160, 0.35);
-  background: rgba(91, 224, 160, 0.07);
+  border-color: rgba(31, 122, 77, 0.35);
+  background: rgba(31, 122, 77, 0.08);
 }
 
 .chip.accent {
   color: var(--accent);
-  border-color: rgba(124, 140, 255, 0.4);
-  background: rgba(124, 140, 255, 0.08);
+  border-color: rgba(91, 42, 157, 0.35);
+  background: rgba(91, 42, 157, 0.08);
 }
 
 
@@ -248,7 +247,7 @@ a {
   width: 24px;
   height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(91, 42, 157, 0.16);
 }
 
 .progress-dots span.on {
@@ -280,7 +279,7 @@ a {
 
 .button.secondary {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(91, 42, 157, 0.06);
   border: 1px solid var(--line);
 }
 
@@ -319,8 +318,8 @@ a {
   padding: 12px 16px;
   border-radius: 12px;
   color: var(--text);
-  background: rgba(91, 224, 160, 0.07);
-  border: 1px solid rgba(91, 224, 160, 0.35);
+  background: rgba(31, 122, 77, 0.08);
+  border: 1px solid rgba(31, 122, 77, 0.35);
 }
 
 .problems {
@@ -476,11 +475,11 @@ a {
 }
 
 .chart-flag-label {
-  fill: #fff;
+  fill: var(--text);
   font-size: 12.5px;
   font-weight: 700;
   paint-order: stroke;
-  stroke: #151c2c;
+  stroke: #ffffff;
   stroke-width: 3px;
   stroke-linejoin: round;
 }
@@ -637,7 +636,7 @@ a {
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.2;
-  color: #fff;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -762,11 +761,11 @@ a {
 
 .row-flag {
   margin-right: 6px;
-  color: var(--amber);
+  color: var(--warn);
 }
 
 .row-amount {
-  color: #fff;
+  color: var(--text);
 }
 
 /* ---------- 집중 관리 식품군 (표) ---------- */
@@ -794,7 +793,7 @@ a {
 
 .food-qty {
   font-weight: 700;
-  color: #fff;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -809,7 +808,7 @@ a {
 }
 
 .verdict.warn {
-  color: var(--amber);
+  color: var(--warn);
 }
 
 .verdict.ok {
@@ -930,7 +929,7 @@ a {
 }
 
 .verdict-line.warn {
-  color: var(--amber);
+  color: var(--warn);
 }
 
 .verdict-line.warn::before {
@@ -1052,7 +1051,7 @@ a {
 
 .analysis-note .note-icon {
   margin-top: 4px;
-  color: var(--amber);
+  color: var(--warn);
 }
 
 .analysis-sub {
@@ -1224,7 +1223,7 @@ a {
 }
 
 .ai-item-title .note-icon {
-  color: var(--amber);
+  color: var(--warn);
 }
 
 .ai-summary,
@@ -1373,8 +1372,8 @@ a {
   z-index: 10;
   padding: 10px 16px;
   color: var(--text);
-  background: var(--bg);
-  border-bottom: 1px solid var(--amber);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--accent);
   font-size: 0.875rem;
   text-align: center;
 }
@@ -1440,7 +1439,7 @@ a {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 .settings-fieldset {
@@ -1598,4 +1597,268 @@ a {
 }
 .suggest-facts {
   margin: 8px 0;
+}
+
+/* ---------- 컴퓨터 화면 (넓은 화면) ----------
+   휴대폰 모양은 그대로 두고, 1024px 이상에서만 위쪽 메뉴와 홈 2단 배치로 바꿉니다. */
+.tab-bar .brand {
+  display: none;
+}
+
+.home-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+.home-col {
+  display: contents; /* 휴대폰: 칸을 없애고 slot 번호 순서로 한 줄에 쌓습니다 */
+}
+
+.slot-1 { order: 1; }
+.slot-2 { order: 2; }
+.slot-3 { order: 3; }
+.slot-4 { order: 4; }
+.slot-5 { order: 5; }
+
+@media (min-width: 1024px) {
+  .app-shell {
+    max-width: none;
+  }
+
+  .lab-banner {
+    position: static;
+  }
+
+  .tab-bar {
+    position: sticky;
+    top: 0;
+    bottom: auto;
+    z-index: 9;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 4px;
+    padding: 0 max(24px, calc((100vw - 1200px) / 2));
+  }
+
+  .tab-bar .brand {
+    display: block;
+    margin-right: 28px;
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--amber);
+  }
+
+  .tab-bar .tab {
+    flex: none;
+    max-width: none;
+    padding: 0 18px;
+  }
+
+  .tab-bar .tab.active::before {
+    top: auto;
+    bottom: -1px;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+  }
+
+  .app-main {
+    width: 100%;
+    max-width: 840px;
+    margin: 0 auto;
+    padding: 28px 24px 56px;
+  }
+
+  .app-main.wide {
+    max-width: 1200px;
+  }
+
+  .home-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 0 24px;
+    align-items: start;
+  }
+
+  .home-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+}
+
+/* ---------- 홈: 오늘 매출 띠와 촘촘한 확인할 사항 ----------
+   이 화면의 질문은 "오늘 매출이 평소만큼 나왔나?"입니다. 가장 큰 것은 총매출 숫자이고, 그 곁에 발견한 것(확인할 사항 건수)을 둡니다. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.band {
+  margin: 4px 0 20px;
+  padding: 4px 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.band-meta {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.band-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.band-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.band-diff {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-top: 8px;
+}
+
+.band-side {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.band-qty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.band-qty strong {
+  margin-left: 4px;
+  color: var(--text);
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.band-finding {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  width: fit-content;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.band-finding.flagged {
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--line));
+}
+
+.band-finding.flagged span {
+  color: var(--warn);
+}
+
+.band-finding:hover {
+  background: var(--surface);
+}
+
+.band .basis-toggle,
+.band details {
+  margin-top: 12px;
+}
+
+/* 확인할 사항: 한 건을 두 줄로 줄입니다. 왼쪽에 분류·날짜와 차이, 오른쪽에 금액과 증가율. 줄 전체가 링크입니다. */
+.attention-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 16px;
+  align-items: baseline;
+  padding: 12px 8px;
+  margin: 0 -8px;
+  border-radius: 8px;
+}
+
+.attention-row:hover {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.attention-row .row-main {
+  min-height: 0;
+}
+
+.attention-row .row-chevron {
+  display: none;
+}
+
+.attention-row .row-amount {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  font-size: 1.25rem;
+}
+
+.attention-row .diff-line {
+  grid-column: 1;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.attention-row .pct {
+  grid-column: 2;
+  justify-self: end;
+}
+
+.attention-row .diff-line ~ .diff-line,
+.attention-row .pct ~ .diff-line {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.attention-list li:first-child .attention-row {
+  padding-top: 12px;
+}
+
+.more-toggle {
+  display: block;
+  margin: 8px 0 4px;
+  padding-left: 0;
+}
+
+@media (min-width: 1024px) {
+  .band {
+    margin-top: 0;
+    padding-bottom: 24px;
+  }
+
+  .band-main {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  .band-value {
+    font-size: 3.5rem;
+  }
+
+  .band-side {
+    justify-items: end;
+    text-align: right;
+  }
 }

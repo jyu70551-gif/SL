@@ -48,9 +48,27 @@ function Group({ heading, entries }) {
   );
 }
 
-export default function AnomalyCard({ weekday }) {
+const SHOWN = 3; // 처음에는 이만큼만 보여 주고 나머지는 펼쳐서 봅니다
+
+// 대분류 단위 목록을 (분류, 날짜) 한 건씩으로 풀고 최신 날짜 순으로 놓습니다.
+function entriesOf(data) {
+  return data.items
+    .flatMap((item) => item.flagged.map((f) => ({ category: item.category, ...f })))
+    .sort((a, b) => (a.date === b.date ? a.category.localeCompare(b.category, "ko") : b.date.localeCompare(a.date)));
+}
+
+// onSummary: 홈 맨 위 요약 띠가 "확인할 사항 N건"을 말할 수 있게 건수를 알려 줍니다.
+export default function AnomalyCard({ weekday, onSummary }) {
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!data || data.status === "not_enough") return;
+    const entries = entriesOf(data);
+    onSummary?.({ total: entries.length, today: entries.filter((e) => e.date === data.date).length });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -93,12 +111,13 @@ export default function AnomalyCard({ weekday }) {
     );
   }
 
-  // 대분류 단위 목록을 (분류, 날짜) 한 건씩으로 풀고, 오늘의 변화와 이전 미확인 건을 나눕니다.
-  const entries = data.items
-    .flatMap((item) => item.flagged.map((f) => ({ category: item.category, ...f })))
-    .sort((a, b) => (a.date === b.date ? a.category.localeCompare(b.category, "ko") : b.date.localeCompare(a.date)));
+  // 오늘의 변화와 이전 미확인 건을 나눕니다. 길면 앞의 몇 건만 보여 주고 펼칠 수 있게 합니다.
+  const entries = entriesOf(data);
   const todays = entries.filter((e) => e.date === data.date);
   const earlier = entries.filter((e) => e.date !== data.date);
+  const hidden = open ? 0 : Math.max(0, entries.length - SHOWN);
+  const showToday = open ? todays : todays.slice(0, SHOWN);
+  const showEarlier = open ? earlier : earlier.slice(0, Math.max(0, SHOWN - todays.length));
 
   let body;
   let cardTitle = title;
@@ -109,22 +128,29 @@ export default function AnomalyCard({ weekday }) {
     aside = `${entries.length}건`;
     body = (
       <>
-        <Group heading={`오늘의 변화 · ${todays.length}건`} entries={todays} />
-        <Group heading={`이전 미확인 사항 · ${earlier.length}건`} entries={earlier} />
+        <Group heading={`오늘의 변화 · ${todays.length}건`} entries={showToday} />
+        {showEarlier.length > 0 && <Group heading={`이전 미확인 사항 · ${earlier.length}건`} entries={showEarlier} />}
       </>
     );
   } else if (todays.length) {
     cardTitle = `오늘의 변화 · ${todays.length}건`;
-    body = <Group entries={todays} />;
+    body = <Group entries={showToday} />;
   } else {
     cardTitle = `이전 미확인 사항 · ${earlier.length}건`;
-    body = <Group entries={earlier} />;
+    body = <Group entries={showEarlier} />;
   }
 
   return (
-    <Card title={cardTitle} aside={aside} keyMark={entries.length > 0}>
-      {body}
-      <ArrowLink to="/reviewed">운영 상황 기록 보기</ArrowLink>
-    </Card>
+    <div id="attention">
+      <Card title={cardTitle} aside={aside} keyMark={entries.length > 0}>
+        {body}
+        {entries.length > SHOWN && (
+          <button type="button" className="text-button more-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+            {open ? "접기" : `나머지 ${hidden}건 더 보기`}
+          </button>
+        )}
+        <ArrowLink to="/reviewed">운영 상황 기록 보기</ArrowLink>
+      </Card>
+    </div>
   );
 }

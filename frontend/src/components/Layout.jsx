@@ -39,10 +39,10 @@ export default function Layout() {
           시연용 데이터예요. 가짜 숫자가 섞여 있어서 실제 매출이 아니에요.
         </div>
       )}
-      <main className="app-main">
-        <Outlet />
-      </main>
       <nav className="tab-bar" aria-label="메뉴">
+        <span className="brand" aria-hidden="true">
+          SL
+        </span>
         {TABS.map((tab) => (
           <NavLink
             key={tab.to}
@@ -54,6 +54,10 @@ export default function Layout() {
           </NavLink>
         ))}
       </nav>
+      {/* 컴퓨터 화면에서는 홈만 2단으로 넓게 씁니다. 나머지 화면은 읽기 좋은 폭으로 가운데에 둡니다. */}
+      <main className={location.pathname === "/" ? "app-main wide" : "app-main"}>
+        <Outlet />
+      </main>
     </div>
   );
 }

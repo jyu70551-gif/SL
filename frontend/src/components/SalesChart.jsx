@@ -4,16 +4,16 @@ import { axisLabel, monthDay, niceAxis, won } from "../format.js";
 // 그래프 스타일. 두께와 반지름은 실제 화면의 CSS px 기준입니다.
 // 그래프를 화면 폭 그대로(1단위 = 1px) 그리고 직접 만든 SVG라서, 차트 라이브러리의 기본 스타일이 덮어쓰지 않습니다.
 export const CHART_STYLE = {
-  actual: { stroke: "#969FFF", width: 1.5 },
-  baseline: { stroke: "#B1B8CA", width: 1, dash: "4 4" },
-  gridH: { stroke: "#394158", width: 1 }, // 가로: 금액 눈금
-  gridV: { stroke: "#2B3248", width: 1 }, // 세로: 주요 날짜 눈금 (가로보다 약하게)
+  actual: { stroke: "#5B2A9D", width: 1.5 },
+  baseline: { stroke: "#8B80A8", width: 1, dash: "4 4" },
+  gridH: { stroke: "#D8D0F0", width: 1 }, // 가로: 금액 눈금
+  gridV: { stroke: "#E6E0F7", width: 1 }, // 세로: 주요 날짜 눈금 (가로보다 약하게)
   dotRadius: 2,
   selected: { radius: 5, border: 2, fill: "#FFFFFF" },
   guide: { width: 1, dash: "2 3", opacity: 0.55 },
-  center: { stroke: "#B1B8CA", width: 1, dash: "4 4" }, // 평소 중심값 (비교 기준선과 같은 모양)
-  bound: { stroke: "#B1B8CA", width: 1, dash: "1 4", opacity: 0.8 }, // 95% 예상 범위의 위·아래
-  ring: { radius: 3.5, border: 1.5, fill: "#151C2C" }, // 비교에 쓴 같은 요일
+  center: { stroke: "#8B80A8", width: 1, dash: "4 4" }, // 평소 중심값 (비교 기준선과 같은 모양)
+  bound: { stroke: "#8B80A8", width: 1, dash: "1 4", opacity: 0.8 }, // 95% 예상 범위의 위·아래
+  ring: { radius: 3.5, border: 1.5, fill: "#FFFFFF" }, // 비교에 쓴 같은 요일
 };
 
 const H = 240;
