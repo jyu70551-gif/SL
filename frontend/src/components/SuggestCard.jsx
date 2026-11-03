@@ -1,3 +1,4 @@
+import { Mascot } from "./StoreScene.jsx";
 import { useState } from "react";
 import { request } from "../api.js";
 import { Card } from "./Card.jsx";
@@ -50,6 +51,7 @@ export default function SuggestCard() {
 
   return (
     <Card title="AI 제안">
+      <Mascot />
       {state === "idle" && (
         <>
           <p className="card-note">오늘 날짜, 근처 학교 방학, 주변 시설, 날씨를 보고 오늘 해 볼 만한 걸 알려 드려요.</p>

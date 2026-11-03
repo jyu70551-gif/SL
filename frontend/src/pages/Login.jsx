@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ApiError } from "../api.js";
 import { useAuth } from "../auth.jsx";
+import StoreScene from "../components/StoreScene.jsx";
 
 function messageFor(error) {
   if (!(error instanceof ApiError)) return "문제가 생겼어요. 잠시 후 다시 시도해 주세요.";
@@ -52,6 +53,7 @@ export default function Login() {
 
   return (
     <main className="login">
+      <StoreScene />
       <h1 className="login-title">SL</h1>
       <form onSubmit={submit} className="login-form">
         <label htmlFor="password">비밀번호</label>

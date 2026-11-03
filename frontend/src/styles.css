@@ -98,6 +98,7 @@ a {
 }
 
 .tab-bar {
+  z-index: 20; /* 카드(position: relative)보다 위에 그려야 휴대폰 아래 메뉴가 가려지지 않습니다 */
   position: fixed;
   left: 0;
   right: 0;
@@ -1860,5 +1861,196 @@ a {
   .band-side {
     justify-items: end;
     text-align: right;
+  }
+}
+
+/* ---------- 편의점 가게 앞 그림 (비어 있는 공간 장식) ---------- */
+.store-scene {
+  width: 100%;
+}
+
+.store-scene svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* 홈: 휴대폰에서는 숨기고, 컴퓨터 화면에서 오른쪽 칸의 남는 높이만 채웁니다. 남는 공간이 작으면 그림 자체를 숨깁니다. */
+.store-scene.fill {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .home-grid {
+    align-items: stretch;
+  }
+
+  .store-scene.fill {
+    display: block;
+    position: relative;
+    order: 10; /* slot 번호(1~5)보다 뒤: 칸 맨 아래 */
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: var(--radius);
+    container-type: size;
+  }
+
+  .store-scene.fill svg {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    overflow: visible; /* 길이 칸 양옆 끝까지 이어지게 */
+  }
+
+  @container (max-height: 120px) {
+    .store-scene.fill svg {
+      display: none;
+    }
+  }
+}
+
+/* 로그인: 폼 위의 가게 그림 */
+.login .store-scene {
+  max-width: 420px;
+  margin: 0 auto 8px;
+}
+
+/* 요약 띠 가운데의 작은 편의점 물건: 컴퓨터 화면에서 가운데가 비어 보이는 자리에만 놓습니다. */
+.shelf-objects {
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .shelf-objects {
+    display: block;
+    flex: none;
+    width: 240px;
+    height: auto;
+    align-self: flex-end;
+    margin: 0 auto 6px;
+  }
+}
+
+/* ---------- 둥글둥글한 편의점 장식 (컴퓨터 화면 시연용) ---------- */
+.card {
+  position: relative;
+}
+
+.card-mascot {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  width: 52px;
+  height: 52px;
+}
+
+.street-scene {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .app-main.wide {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .home-page {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 홈 맨 아래: 남는 높이를 채우고, 모자라도 최소 높이는 지킵니다. 풍경은 바닥에 붙고 길은 양옆으로 끝까지 이어집니다. */
+  .street-scene {
+    display: block;
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 170px;
+    margin-top: 28px;
+    overflow: hidden;
+    border-radius: 28px;
+    background: linear-gradient(#f2eeff, #e6dffa);
+  }
+
+  .street-scene svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+}
+
+/* 큰 화면(풀HD 모니터 등): 폭만 넓혀서 한 화면에 들어오게 합니다. (글자를 키우면 길어져서 풍경이 화면 밖으로 밀립니다) */
+@media (min-width: 1500px) {
+  .app-main.wide {
+    max-width: 1480px;
+  }
+
+  .tab-bar {
+    padding: 0 max(24px, calc((100vw - 1480px) / 2));
+  }
+
+  .shelf-objects {
+    width: 280px;
+  }
+}
+
+/* ---------- 풍경은 요약 띠 가운데로: 첫 화면에 바로 보이게 합니다 (위의 "맨 아래" 배치는 대체됨) ---------- */
+.street-scene {
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .band .street-scene {
+    display: block;
+    position: relative;
+    flex: 1 1 auto;
+    align-self: stretch;
+    min-height: 168px;
+    max-width: 660px;
+    margin: 0 32px;
+    overflow: hidden;
+    border-radius: 28px;
+    background: linear-gradient(#f2eeff, #e6dffa);
+  }
+
+  .band .street-scene svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 1099px) {
+  .street-scene {
+    display: none;
+  }
+}
+
+/* 컴퓨터 화면: 첫 화면에 최대한 들어오게 세로 간격을 줄입니다. */
+@media (min-width: 1024px) {
+  .band {
+    padding-bottom: 14px;
+    margin-bottom: 16px;
+  }
+
+  .band-meta {
+    margin-bottom: 8px;
+  }
+
+  .attention-group + .attention-group {
+    margin-top: 8px;
+  }
+
+  .group-title {
+    margin-bottom: 0;
+  }
+
+  .app-main {
+    padding-top: 20px;
   }
 }

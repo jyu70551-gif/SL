@@ -5,6 +5,7 @@ import AnomalyCard from "../components/AnomalyCard.jsx";
 import { BasisToggle, Card, NeedMore } from "../components/Card.jsx";
 import { DiffLine } from "../components/Change.jsx";
 import ForecastCard from "../components/ForecastCard.jsx";
+import { StreetScene } from "../components/StoreScene.jsx";
 import SuggestCard from "../components/SuggestCard.jsx";
 import { ArrowLink } from "../components/Icons.jsx";
 import { count, dateLabel, hourLabel, monthDay, shortDate, won } from "../format.js";
@@ -40,6 +41,8 @@ function TodayBand({ data, attention }) {
             <p className="diff-line same">비교 자료가 부족해요</p>
           )}
         </div>
+        {/* 컴퓨터 화면에서 가운데가 비어 보이는 자리를 동네 풍경으로 채웁니다. (휴대폰에서는 안 보입니다) */}
+        <StreetScene />
         <div className="band-side">
           <p className="band-qty">
             판매 수량 <strong>{count(today.total_quantity)}</strong>
@@ -192,7 +195,7 @@ export default function Home() {
   }, [load]);
 
   return (
-    <section>
+    <section className="home-page">
       <h1 className="sr-only">홈</h1>
       {data?.has_data && <TodayBand data={data} attention={attention} />}
 
