@@ -20,7 +20,7 @@ def _never_touch_real_database(monkeypatch):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(config, "AI_ENV_FILE", None)
     # 공식 일정 가져오기 키도 마찬가지입니다. (시험은 가짜 응답만 씁니다)
-    for key in ["DATA_GO_KR_API_KEY", "NEIS_API_KEY", "KAKAO_REST_API_KEY", "MARKET_API_KEY", "HOLIDAY_API_KEY", "WEATHER_PAST_API_KEY", "WEATHER_FORECAST_API_KEY", "WEATHER_WARNING_API_KEY", "STORE_API_KEY", "SGIS_ID", "SGIS_SECURITY_KEY"]:
+    for key in ["DATA_GO_KR_API_KEY", "NEIS_API_KEY", "KAKAO_REST_API_KEY", "MARKET_API_KEY", "HOLIDAY_API_KEY", "WEATHER_PAST_API_KEY", "WEATHER_FORECAST_API_KEY", "WEATHER_WARNING_API_KEY", "STORE_API_KEY", "SGIS_ID", "SGIS_SECURITY_KEY", "APIFY_TOKEN", "APIFY_RESULTS_PER_HASHTAG", "APIFY_MAX_HASHTAGS", "APIFY_RUN_MAX_USD", "APIFY_MONTHLY_RESULTS"]:
         monkeypatch.delenv(key, raising=False)
 
 

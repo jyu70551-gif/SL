@@ -1,355 +1,235 @@
 import { useCallback, useEffect, useState } from "react";
 import { request } from "../api.js";
-import { monthDay } from "../format.js";
 
-const count = (n) => n.toLocaleString("ko-KR"); // 건수 앞에 '개'가 붙지 않게 숫자만 씁니다
-
-// '요즘 뜨는 식품' 탭 (docs/trends.md). 게시물 수·증가율·순위는 모두 서버가 코드로 계산한 값이고, 여기서는 보여 주기만 합니다.
-// AI 는 설명 문장만 씁니다. 수집 못 한 날은 0건이 아니라 '모름'으로 보여 줍니다.
-const MODE = {
-  demo: { text: "시연 데이터", note: "지어낸 가짜 게시물이에요. 실제 SNS 언급량이 아니에요.", tone: "demo" },
-  real: { text: "실제 수집 데이터", note: "", tone: "real" },
-  mixed: { text: "실제·시연 데이터 섞임", note: "시연 데이터가 섞여 있어요. 실제 SNS 언급량으로 보면 안 돼요.", tone: "demo" },
-  none: { text: "수집된 데이터 없음", note: "아직 수집된 게시물이 없어요. 실제 수집 공급원은 연결되기 전이에요.", tone: "none" },
+// '요즘 뜨는 식품' 탭 (docs/trends.md 11장). 버튼을 누르면 편의점 신상 해시태그의 최근 게시물을 한 번 받아 상품 이름별 언급 게시물 수를 보여 줍니다.
+// 건수는 서버가 코드로 센 값입니다. '증가'·'급상승'·'전체 인기 순위'라고 말하지 않고, 근거는 펼쳐서 봅니다. AI 설명은 만들지 않으므로 보여 주지 않습니다.
+const BLOCKED = {
+  no_token: "수집 설정(Apify 키)이 아직 없어서 가져올 수 없어요.",
+  ai_unavailable: "AI를 지금 쓸 수 없어서 상품 이름을 찾을 수 없어요.",
 };
-const AI_NOTE = { unavailable: "AI를 지금 쓸 수 없어요.", timeout: "AI 응답이 늦어서 설명을 만들지 못했어요.", guard: "AI 설명이 검사를 통과하지 못했어요." };
+const FAIL = {
+  no_token: "수집 설정(Apify 키)이 아직 없어요.",
+  ai_unavailable: "AI를 지금 쓸 수 없어요. 게시물을 받기 전에 멈춰서 비용은 들지 않았어요.",
+  busy: "이미 가져오는 중이에요. 잠시 뒤 결과를 확인해 주세요.",
+  monthly_limit: "이번 달 수집 한도에 닿아서 가져오지 않았어요. 다음 달에 다시 가져올 수 있어요.",
+  timeout: "응답이 너무 늦어서 멈췄어요. 잠시 뒤 다시 눌러 주세요.",
+  payment: "Apify 사용 한도나 결제 문제로 가져오지 못했어요. Apify 계정을 확인해 주세요.",
+  network: "연결에 실패했어요. 잠시 뒤 다시 눌러 주세요.",
+};
 
-function rangeText(range) {
-  return `${monthDay(range[0])} ~ ${monthDay(range[1])}`;
-}
+const kstTime = (iso) => new Date(iso + "Z").toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+const korDay = (iso) => {
+  if (!iso) return null; // 게시일 정보가 없는 옛 저장 결과
+  const [, m, d] = iso.split("-").map(Number);
+  return `${m}월 ${d}일`;
+};
+const postedText = (iso) => (iso ? `게시일 ${korDay(iso)}` : "게시일 확인 못함");
 
-function Spark({ daily }) {
-  // 못 가져온 날(posts=null)은 선을 끊어서 0건처럼 보이지 않게 합니다. 가운데 세로선이 이전/최근 기간의 경계입니다.
-  const max = Math.max(1, ...daily.map((d) => d.posts ?? 0));
-  const w = 140;
-  const h = 36;
-  const x = (i) => (i / (daily.length - 1)) * w;
-  const y = (v) => h - 3 - (v / max) * (h - 8);
-  const runs = [];
-  let run = [];
-  daily.forEach((d, i) => {
-    if (d.posts == null) {
-      if (run.length) runs.push(run);
-      run = [];
-    } else {
-      run.push(`${x(i).toFixed(1)},${y(d.posts).toFixed(1)}`);
-    }
-  });
-  if (run.length) runs.push(run);
-  const half = x(daily.length / 2 - 0.5);
-  const gaps = daily.filter((d) => d.posts == null).length;
-  return (
-    <svg className="spark" viewBox={`0 0 ${w} ${h}`} role="img" aria-label={`일별 게시물 추이${gaps ? `, 수집하지 못한 날 ${gaps}일` : ""}`}>
-      <line x1={half} x2={half} y1="2" y2={h - 2} className="spark-split" />
-      {runs.map((r, i) => (r.length > 1 ? <polyline key={i} points={r.join(" ")} className="spark-line" /> : <circle key={i} cx={r[0].split(",")[0]} cy={r[0].split(",")[1]} r="2" className="spark-dot" />))}
-    </svg>
-  );
-}
-
-function Change({ item }) {
-  const ch = item.change;
-  if (!ch) return <span className="trend-change none">비교할 수 없어요</span>;
-  if (ch.new) return <span className="trend-change up">새롭게 관측됨 · +{count(ch.delta)}건</span>;
-  const sign = ch.delta > 0 ? "+" : ch.delta < 0 ? "−" : "";
-  const tone = ch.delta > 0 ? "up" : ch.delta < 0 ? "down" : "none";
-  return (
-    <span className={`trend-change ${tone}`}>
-      {ch.delta > 0 ? "▲" : ch.delta < 0 ? "▼" : ""} {sign}
-      {count(Math.abs(ch.delta))}건 · {sign}
-      {Math.abs(ch.rate_pct)}%
-    </span>
-  );
-}
-
-function Explanation({ foodId, state, onChange }) {
-  const [busy, setBusy] = useState(false);
-  async function make(refresh) {
-    setBusy(true);
-    try {
-      onChange(await request(`/api/trends/foods/${foodId}/explanation`, { method: "POST", body: { refresh } }));
-    } catch {
-      onChange({ status: "failed", error: "network" });
-    } finally {
-      setBusy(false);
-    }
-  }
-  if (!state) return <p className="card-note">설명을 불러오는 중…</p>;
-  if (busy) return <p className="card-note" role="status">설명을 만들고 있어요…</p>;
-  if (state.status === "ok") {
-    return (
-      <>
-        <p className="trend-summary">{state.explanation.summary}</p>
-        {state.stale && <p className="card-note">근거가 새로 쌓였어요. 설명이 오래됐을 수 있어요.</p>}
-      </>
-    );
-  }
-  if (state.status === "insufficient") return <p className="card-note">{state.message}.</p>;
-  if (state.status === "failed" || state.status === "unavailable") {
-    return (
-      <>
-        <p className="card-note">설명을 만들지 못했어요. {AI_NOTE[state.error] ?? AI_NOTE[state.state] ?? ""} 집계와 근거 콘텐츠는 그대로 볼 수 있어요.</p>
-        <button type="button" className="button secondary" onClick={() => make(false)}>
-          다시 시도
-        </button>
-      </>
-    );
-  }
-  return (
-    <button type="button" className="button secondary" onClick={() => make(false)}>
-      AI 설명 만들기
-    </button>
-  );
-}
-
-function Detail({ item, explanation, evidence, onExplain }) {
-  const ex = explanation?.status === "ok" ? explanation.explanation : null;
-  // 근거 번호는 아래 근거 콘텐츠 목록의 순서입니다. 목록이 아직 오기 전에는 번호 대신 기다리라고 보여 줍니다.
-  const label = (ids) => ids.map((id) => (evidence ? `근거 ${evidence.findIndex((e) => e.id === id) + 1}` : "근거 불러오는 중")).join(", ");
-  const sections = [
-    ["confirmed", "확인된 계기", "공식 발표 등 출처에서 확인한 사실"],
-    ["recurring", "자주 등장하는 내용", "수집한 게시물에서 반복해 언급된 주제 (게시물의 주장이고 사실로 확인된 것은 아니에요)"],
-    ["interpretation", "해석", "관심 증가와 관련됐을 가능성이 있는 설명이에요. 원인으로 단정하지 않아요"],
-  ];
-  return (
-    <div className="basis-panel trend-detail">
-      {ex && (
-        <div className="trend-explain">
-          {sections.map(([key, title, note]) => (
-            <div key={key}>
-              <h4 className="group-title">{title}</h4>
-              <p className="muted">{note}</p>
-              {ex[key].length === 0 ? <p className="muted">{key === "confirmed" ? "공식 발표로 확인된 계기는 없어요." : "해당 내용이 없어요."}</p> : (
-                <ul className="basis-list">
-                  {ex[key].map((entry) => (
-                    <li key={entry.text}>
-                      {entry.text} <span className="muted">({label(entry.content_ids)})</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
-          <p className="muted">AI가 근거 콘텐츠를 풀어 쓴 설명이에요. 만든 때 {explanation.created_at.slice(0, 16).replace("T", " ")} · 숫자는 서버가 센 값이에요.</p>
-          <button type="button" className="text-button" onClick={() => onExplain(true)}>
-            설명 다시 만들기
-          </button>
-        </div>
-      )}
-      <h4 className="group-title">근거 콘텐츠</h4>
-      {evidence === null && <p className="muted">불러오는 중…</p>}
-      {evidence?.length === 0 && <p className="muted">이 기간에 근거로 보여 줄 콘텐츠가 없어요.</p>}
-      <ol className="trend-evidence">
-        {(evidence ?? []).map((e) => (
-          <li key={e.id}>
-            <span className={`trend-kind ${e.kind}`}>{e.kind === "official" ? "공식 발표" : "게시물"}</span>
-            {e.is_ad && <span className="trend-kind ad">광고·협찬 표시</span>}
-            <span className="muted"> {monthDay(e.posted_on)}</span>
-            <p>{e.text}</p>
-            {e.url ? (
-              <a href={e.url} target="_blank" rel="noopener noreferrer">
-                원문 보기 ↗
-              </a>
-            ) : (
-              <span className="muted">원문 링크 없음{e.source === "demo" ? " (시연 데이터)" : ""}</span>
-            )}
-          </li>
-        ))}
-      </ol>
-      {item.current.by_source && Object.keys(item.current.by_source).length > 0 && (
-        <p className="muted">
-          수집처별 게시물(최근): {Object.entries(item.current.by_source).map(([s, n]) => `${s === "demo" ? "시연 데이터" : s} ${n}건`).join(", ")}
-          {item.current.ad_posts > 0 && ` · 광고·협찬 표시 ${item.current.ad_posts}건 포함`}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function FoodCard({ item, summary, onFavorite }) {
-  const [explanation, setExplanation] = useState(null);
-  const [evidence, setEvidence] = useState(null);
+function FoodCard({ food }) {
   const [open, setOpen] = useState(false);
-  const excluded = item.rank_excluded;
-
-  useEffect(() => {
-    let alive = true;
-    request(`/api/trends/foods/${item.food_id}/explanation`)
-      .then((d) => alive && setExplanation(d))
-      .catch(() => alive && setExplanation({ status: "failed", error: "network" }));
-    return () => {
-      alive = false;
-    };
-  }, [item.food_id]);
-
-  async function toggleDetail() {
-    const next = !open;
-    setOpen(next);
-    if (next && evidence === null) {
-      try {
-        setEvidence((await request(`/api/trends/foods/${item.food_id}/evidence`)).items);
-      } catch {
-        setEvidence([]);
-      }
-    }
-  }
-  async function reExplain(refresh) {
-    setExplanation(await request(`/api/trends/foods/${item.food_id}/explanation`, { method: "POST", body: { refresh } }));
-  }
-
+  const shown = food.evidence ?? (food.links ?? []).map((url) => ({ url, text: "", posted_on: null })); // 옛 형식(링크만)도 읽습니다
   return (
-    <li className="trend-card card">
-      <div className="trend-head">
-        <div>
-          <h3 className="trend-name">
-            {item.name}
-            {item.brand && <span className="muted"> · {item.brand}</span>}
-          </h3>
-          <span className="muted">{item.kind === "product" ? "개별 상품" : "식품 유형"}</span>
-        </div>
-        <Change item={item} />
-      </div>
-      <p className="trend-counts">
-        최근 <strong>{count(item.current.posts)}건</strong> · 이전 <strong>{count(item.previous.posts)}건</strong>
-        <span className="muted"> · {item.current.accounts == null ? "작성 계정 수는 확인하지 못했어요" : `작성 계정 ${item.current.accounts}곳`}</span>
+    <li className="td-card">
+      <h3 className="td-name">{food.name}</h3>
+      <p className="td-counts">
+        수집 게시물 <strong>{food.posts}건</strong> · 작성 계정 {food.accounts}곳
       </p>
-      <p className="muted trend-basis">수집 게시물 기준{item.official_count > 0 ? ` · 공식 발표 ${item.official_count}건 별도` : ""}</p>
-      <Spark daily={item.daily} />
-      {excluded && <p className="trend-excluded">증가 순위에서 뺐어요: {excluded}</p>}
-      <Explanation foodId={item.food_id} state={explanation} onChange={setExplanation} />
-      <div className="trend-actions">
-        <button type="button" className="text-button" aria-expanded={open} onClick={toggleDetail}>
-          근거 콘텐츠 보기 {open ? "▴" : "▾"}
-        </button>
-        <button type="button" className={`button ${item.favorite ? "" : "secondary"}`} aria-pressed={item.favorite} onClick={() => onFavorite(item)}>
-          {item.favorite ? "★ 저장됨" : "☆ 관심 식품 저장"}
-        </button>
-      </div>
-      {open && <Detail item={item} explanation={explanation} evidence={evidence} onExplain={reExplain} />}
+      <button type="button" className="td-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+        근거 게시물 {food.posts}건 보기 <span aria-hidden="true">{open ? "⌃" : "›"}</span>
+      </button>
+      {open && (
+        <div className="td-evidence">
+          <p className="td-note">게시물에 쓰인 말이에요. 확인된 사실이 아니에요.{food.posts > shown.length && ` 이 중 ${shown.length}건만 보여 줘요.`}</p>
+          <ul>
+            {shown.map((e) => (
+              <li key={e.url}>
+                {e.text && <p>{e.text}</p>}
+                <p className="td-note">
+                  {postedText(e.posted_on)} ·{" "}
+                  <a href={e.url} target="_blank" rel="noopener noreferrer">
+                    원본 보기 ↗
+                  </a>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </li>
+  );
+}
+
+function SafetyMentions({ snap }) {
+  const list = snap.warnings ?? [];
+  if (!list.length) return null;
+  return (
+    <details className="td-safety">
+      <summary>안전 관련 언급 · 확인 필요 게시물 {snap.safety_posts}건</summary>
+      <div className="td-panel">
+        <p>게시물에서 회수·안전 관련 표현이 발견됐어요. 공식 확인 전 정보이며, 과거 내용이나 잘못된 정보가 포함될 수 있어요. 식약처 회수 정보나 본사 공지를 확인해 주세요. 위 식품 건수에는 세지 않았어요.</p>
+        <ul>
+          {list.map((w) => (
+            <li key={w.url}>
+              <strong>{w.foods.length ? w.foods.join(", ") : "상품 이름 미확인"}</strong>
+              <p>{w.text}…</p>
+              <p className="td-note">
+                {postedText(w.posted_on)} ·{" "}
+                <a href={w.url} target="_blank" rel="noopener noreferrer">
+                  원본 보기 ↗
+                </a>
+              </p>
+            </li>
+          ))}
+        </ul>
+        {snap.safety_posts > list.length && <p className="td-note">이 밖에 게시물 {snap.safety_posts - list.length}건이 더 있어요.</p>}
+      </div>
+    </details>
+  );
+}
+
+function Criteria({ data, snap }) {
+  const normal = snap ? snap.unique_posts - snap.safety_posts : 0;
+  return (
+    <details className="td-criteria">
+      <summary>수집 기준과 한계 보기</summary>
+      <div className="td-panel">
+        <dl>
+          <dt>수집 플랫폼</dt>
+          <dd>인스타그램 공개 게시물(Apify로 수집)</dd>
+          {snap && (
+            <>
+              <dt>대상 해시태그</dt>
+              <dd>{snap.tags.map((t) => `#${t}`).join(" ")}</dd>
+              <dt>게시물 기간</dt>
+              <dd>
+                {snap.posted_range
+                  ? `${korDay(snap.posted_range[0])} ~ ${korDay(snap.posted_range[1])}에 올라온 게시물이에요(해시태그별 최신 글을 받아서, 정해 둔 기간은 없어요).`
+                  : "확인하지 못했어요."}
+              </dd>
+              <dt>수집 시각</dt>
+              <dd>{kstTime(snap.collected_at)} (한국 시간)</dd>
+              <dt>사용한 게시물</dt>
+              <dd>
+                받은 {snap.received}건 중 중복을 뺀 {snap.unique_posts}건. 식품 집계에 {normal}건, 안전 관련 언급으로 따로 본 것 {snap.safety_posts}건
+              </dd>
+            </>
+          )}
+          <dt>집계 방식</dt>
+          <dd>
+            AI가 글에서 상품 이름 후보만 찾고, 건수는 코드가 전체 게시물에서 다시 세요. 같은 게시물은 한 번만, 작성자는 계정 수로 따로 세요. 서로 다른 게시물 2건·계정 2곳 이상에 나온 이름만 보여요. 한 게시물에 상품이 여러 개 나오면 각각 1건으로 세요. 많이 언급된 순서로 나열했어요.
+          </dd>
+          <dt>수집 한도</dt>
+          <dd>
+            해시태그당 최대 {snap?.per_hashtag ?? "정해진 수"}건, 한 번에 최대 {data.max_results}건 · 하루 1회 · 이번 달 {data.month_used}건 / 월 한도 {data.monthly_limit}건
+          </dd>
+        </dl>
+        <p>
+          해시태그 최신 게시물 일부만 본 제한된 표본이에요. 플랫폼 전체 인기나 검색량, 실제 구매 수요를 뜻하지 않고, 내일 다시 가져오면 달라질 수 있어요. 우리 점포의 상품·매출과도 연결돼 있지 않으니 이 정보만으로 발주를 정하지 마세요.
+        </p>
+      </div>
+    </details>
   );
 }
 
 export default function Trends() {
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState(false);
-  const [sort, setSort] = useState("growth");
-  const [onlySaved, setOnlySaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   const load = useCallback(() => {
     setFailed(false);
-    request("/api/trends")
+    request("/api/trends/today")
       .then(setData)
       .catch(() => setFailed(true));
   }, []);
   useEffect(load, [load]);
 
-  async function favorite(item) {
-    const was = item.favorite;
-    setData((d) => ({ ...d, items: d.items.map((i) => (i.food_id === item.food_id ? { ...i, favorite: !was } : i)) })); // 먼저 보여 주고, 저장에 실패하면 되돌립니다
+  async function collect() {
+    setBusy(true);
+    setError("");
     try {
-      await request(`/api/trends/favorites/${item.food_id}`, { method: was ? "DELETE" : "POST" });
-    } catch {
-      setData((d) => ({ ...d, items: d.items.map((i) => (i.food_id === item.food_id ? { ...i, favorite: was } : i)) }));
+      setData(await request("/api/trends/today/collect", { method: "POST" }));
+    } catch (e) {
+      setError(FAIL[e?.detail?.code] ?? "가져오지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
     }
   }
 
+  const head = (
+    <>
+      <h1 className="page-title">요즘 뜨는 식품</h1>
+      <p className="td-lead">최근 수집한 인스타그램 게시물에서 발견한 편의점 식품이에요.</p>
+    </>
+  );
+
   if (failed) {
     return (
-      <section>
-        <h1 className="page-title">요즘 뜨는 식품</h1>
-        <p className="card-note">불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.</p>
+      <section className="td-page">
+        {head}
+        <p className="td-note">불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.</p>
         <button type="button" className="button secondary" onClick={load}>
           다시 시도
         </button>
       </section>
     );
   }
-  if (!data) return <p className="empty-note">불러오는 중…</p>;
+  if (!data) {
+    return (
+      <section className="td-page" aria-busy="true">
+        {head}
+        <p className="td-note">불러오는 중…</p>
+      </section>
+    );
+  }
 
-  const mode = MODE[data.mode] ?? MODE.none;
-  const byId = Object.fromEntries(data.items.map((i) => [i.food_id, i]));
-  const order = sort === "growth" ? data.rank.growth : data.rank.mentions;
-  let shown = order.map((id) => byId[id]).filter(Boolean);
-  const outOfRank = sort === "growth" ? data.items.filter((i) => i.rank_excluded) : [];
-  if (onlySaved) shown = shown.filter((i) => i.favorite);
-  const status = data.status;
-  const gaps = (s) => [...s.missing_days.map((d) => `${monthDay(d)} 미수집`), ...s.failed_days.map((d) => `${monthDay(d)} 수집 실패`)];
-
+  const snap = data.snapshot;
   return (
-    <section className="trends-page">
-      <header className="trend-top">
-        <h1 className="page-title">요즘 뜨는 식품</h1>
-        <p className={`trend-mode ${mode.tone}`}>
-          <strong>{mode.text}</strong>
-          {mode.note && <span> · {mode.note}</span>}
+    <section className="td-page">
+      {head}
+      <div className="td-status">
+        <p>
+          {snap ? (
+            <>
+              마지막 갱신: {kstTime(snap.collected_at)} · 수집 게시물 {snap.unique_posts}건 <span className="td-chip">인스타그램 실제 수집</span>
+            </>
+          ) : (
+            "아직 가져오지 않았어요."
+          )}
         </p>
-        <dl className="trend-meta">
-          <div>
-            <dt>분석 기간</dt>
-            <dd>
-              최근 완료된 7일 {rangeText(data.period.current)} 과 직전 7일 {rangeText(data.period.previous)} 비교 (한국 시간)
-            </dd>
-          </div>
-          <div>
-            <dt>데이터 출처</dt>
-            <dd>
-              {data.sources.length ? data.sources.map((s) => (s === "demo" ? "시연 데이터(가짜)" : s)).join(", ") : "없음"}
-              {data.scope.length > 0 && ` · 수집 범위: ${data.scope.join(" / ")}`}
-            </dd>
-          </div>
-          <div>
-            <dt>마지막 갱신</dt>
-            <dd>{data.last_collected ? data.last_collected.slice(0, 16).replace("T", " ") + " (한국 시간)" : "—"}</dd>
-          </div>
-        </dl>
-        <p className="muted">게시물 언급량이에요. 검색 관심도와는 다른 지표예요. 실제 SNS 전체 언급량이 아니라 수집한 게시물 기준이에요.</p>
-      </header>
-
-      {(!status.current.complete || !status.previous.complete || status.scope_mismatch) && data.sources.length > 0 && (
-        <div className="trend-warn" role="status">
-          {!status.current.complete && <p>최근 기간에 수집하지 못한 날이 있어요: {gaps(status.current).join(", ")}. 못 가져온 날은 0건으로 세지 않아요.</p>}
-          {!status.previous.complete && <p>직전 기간에 수집하지 못한 날이 있어요: {gaps(status.previous).join(", ")}. 그래서 증가 순위를 보류했어요.</p>}
-          {status.scope_mismatch && <p>두 기간의 수집 범위가 달라서 증가 순위를 보류했어요.</p>}
-        </div>
-      )}
-
-      <div className="trend-controls">
-        <div className="trend-sort" role="group" aria-label="정렬">
-          {[["growth", "관심 증가순"], ["mentions", "언급량순"]].map(([key, label]) => (
-            <button key={key} type="button" className={`settings-tab${sort === key ? " on" : ""}`} aria-pressed={sort === key} onClick={() => setSort(key)}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <label className="trend-saved">
-          <input type="checkbox" checked={onlySaved} onChange={(e) => setOnlySaved(e.target.checked)} /> 저장한 식품만
-        </label>
+        {data.can_collect || busy ? (
+          <button type="button" className="button" disabled={busy} aria-busy={busy} onClick={collect}>
+            {busy ? "가져오는 중…" : error ? "다시 시도" : "최신 식품 살펴보기"}
+          </button>
+        ) : data.blocked === "done_today" ? (
+          <p className="td-done">
+            <strong>✓ 오늘 수집 완료</strong> · 다음 수집은 내일 할 수 있어요(하루 1회).
+          </p>
+        ) : (
+          <p className="td-note">{BLOCKED[data.blocked]}</p>
+        )}
+        {busy && <p className="td-note">게시물을 받아 분석하는 중이에요. 1~2분 걸릴 수 있어요.</p>}
+        {error && (
+          <p className="td-error" role="alert">
+            {error}
+          </p>
+        )}
       </div>
 
-      {shown.length === 0 && (
-        <p className="card-note">
-          {data.items.length === 0 ? "보여 줄 식품이 없어요." : onlySaved ? "저장한 식품이 없어요." : sort === "growth" ? "지금은 증가 순위로 보여 줄 식품이 없어요. 아래에서 이유를 확인해 보세요." : "보여 줄 식품이 없어요."}
-        </p>
-      )}
-      <ul className="trend-grid">
-        {shown.map((item) => (
-          <FoodCard key={item.food_id} item={item} summary={data} onFavorite={favorite} />
-        ))}
-      </ul>
+      {!snap && <p className="td-note">버튼을 누르면 편의점 신상 해시태그의 최근 게시물을 한 번 받아 와요.</p>}
+      {snap && (snap.items.length === 0 ? (
+        <p className="td-note">서로 다른 계정 두 곳 이상이 두 번 이상 언급한 식품을 찾지 못했어요.</p>
+      ) : (
+        <ul className="td-grid">
+          {snap.items.map((f) => (
+            <FoodCard key={f.name} food={f} />
+          ))}
+        </ul>
+      ))}
 
-      {outOfRank.length > 0 && (
-        <details className="trend-out">
-          <summary>증가 순위에서 뺀 식품 {outOfRank.length}개와 이유</summary>
-          <ul className="trend-grid">
-            {outOfRank
-              .filter((i) => !onlySaved || i.favorite)
-              .map((item) => (
-                <FoodCard key={item.food_id} item={item} summary={data} onFavorite={favorite} />
-              ))}
-          </ul>
-        </details>
-      )}
-      <p className="card-note">외부 관심만으로 발주를 정하지 마세요. 이 탭은 우리 점포의 상품·매출과 아직 연결돼 있지 않고, 발주 수량을 권하지 않아요.</p>
+      {snap && <SafetyMentions snap={snap} />}
+      <Criteria data={data} snap={snap} />
     </section>
   );
 }

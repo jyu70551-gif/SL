@@ -35,6 +35,7 @@ PARAMS = {
 }
 
 SORTS = ("growth", "mentions")
+DISCOVERY_SOURCE = "instagram_discovery"  # 상품 이름 후보를 찾으려고 모은 게시물. 상한에 걸려 일부만 본 것이라 게시물 수·순위 계산에는 세지 않습니다
 TAG_PREFIX = "[시연 데이터] "  # 시연 데이터 게시물 글 앞에 붙는 표시. 글자 수를 셀 때는 뺍니다
 
 
@@ -89,7 +90,8 @@ def alias_table(foods: list[TrendFood]) -> dict[str, int | None]:
 def match_foods(text: str, table: dict[str, int | None]) -> set[int]:
     """글에 나온 식품 번호들. 같은 식품을 여러 번(여러 별칭으로) 언급해도 한 번만 담깁니다."""
     haystack = _normalize(text)
-    return {food_id for alias, food_id in table.items() if food_id is not None and alias in haystack}
+    squeezed = haystack.replace(" ", "")  # 해시태그는 띄어쓰기가 없어서(#말차크림도넛) 공백을 뺀 글과도 견줍니다
+    return {food_id for alias, food_id in table.items() if food_id is not None and (alias in haystack or alias.replace(" ", "") in squeezed)}
 
 
 def ingest(db: Session, source: str, items: list[dict], now: datetime | None = None) -> dict:
@@ -165,7 +167,7 @@ def build_summary(db: Session, today: date | None = None) -> dict:
     win = periods(today)
     cur_days, prev_days = _days(*win["current"]), _days(*win["previous"])
     foods = list(db.scalars(select(TrendFood)))
-    contents = {c.id: c for c in db.scalars(select(TrendContent))}
+    contents = {c.id: c for c in db.scalars(select(TrendContent)) if c.source != DISCOVERY_SOURCE}
     mentions: dict[int, list[TrendContent]] = {}
     for m in db.scalars(select(TrendMention)):
         if m.content_id in contents:
@@ -249,7 +251,8 @@ def build_summary(db: Session, today: date | None = None) -> dict:
 
 def _status_view(state: dict) -> dict:
     return {"complete": state["complete"], "ok_days": state["ok_days"], "total_days": state["total_days"],
-            "missing_days": [d.isoformat() for s, d, st in state["bad"] if st == "missing"], "failed_days": [d.isoformat() for s, d, st in state["bad"] if st == "failed"]}
+            "missing_days": [d.isoformat() for s, d, st in state["bad"] if st == "missing"], "failed_days": [d.isoformat() for s, d, st in state["bad"] if st == "failed"],
+            "capped_days": [d.isoformat() for s, d, st in state["bad"] if st == "capped"]}  # 상한에 걸려 일부만 수집한 날(모름)
 
 
 def _dedupe(rows: list[TrendContent]) -> list[TrendContent]:
@@ -267,7 +270,7 @@ def food_contents(db: Session, food_id: int, today: date | None = None, limit: i
     today = today or kst_today()
     start, end = periods(today)["current"]
     ids = [m.content_id for m in db.scalars(select(TrendMention).where(TrendMention.food_id == food_id))]
-    rows = [c for c in db.scalars(select(TrendContent).where(TrendContent.id.in_(ids))) if start <= to_kst_day(c.posted_at) <= end] if ids else []
+    rows = [c for c in db.scalars(select(TrendContent).where(TrendContent.id.in_(ids), TrendContent.source != DISCOVERY_SOURCE)) if start <= to_kst_day(c.posted_at) <= end] if ids else []
     rows = _dedupe(sorted(rows, key=lambda c: c.posted_at, reverse=True))
     rows.sort(key=lambda c: c.kind != "official")
     return [{"id": c.id, "source": c.source, "kind": c.kind, "url": c.url, "posted_on": to_kst_day(c.posted_at).isoformat(), "text": c.text, "is_ad": c.is_ad} for c in rows[:limit]]

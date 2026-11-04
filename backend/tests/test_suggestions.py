@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from app import events, places, suggestions
 from app.ai.client import AiError
+from app.ai.guard import GuardError
 from app.models import ScheduleEvent
 from tests.ai_fakes import FakeLLM, make_client  # noqa: F401
 
@@ -49,8 +50,8 @@ def good_cards(system, user):
     event = "event:2026-11-11"
     assert event in facts
     return {"cards": [
-        {"title": "빼빼로 코너 만들어 볼까요?", "body": "빼빼로데이가 9일 뒤예요. 근처에 학교가 3곳 있어서 입구 쪽에 진열해 보면 좋아요.", "fact_ids": [event, "places:500"]},
-        {"title": "내일은 우산 챙겨 두세요", "body": "내일 비 소식이 있어서 계산대 옆에 우산을 놓아 보세요.", "fact_ids": ["weather:내일"]},
+        {"title": "빼빼로 코너 만들어 볼까요?", "short": "빼빼로데이가 9일 뒤예요.", "body": "빼빼로데이가 9일 뒤예요. 근처에 학교가 3곳 있어서 입구 쪽에 진열해 보면 좋아요.", "fact_ids": [event, "places:500"]},
+        {"title": "내일은 우산 챙겨 두세요", "short": "내일 비 소식이 있어서 계산대 옆에 우산을 놓아 보세요.", "body": "내일 비 소식이 있어서 계산대 옆에 우산을 놓아 보세요.", "fact_ids": ["weather:내일"]},
     ]}
 
 
@@ -179,11 +180,13 @@ def test_same_facts_are_not_asked_again_unless_refreshed(setup):
     client.post("/api/suggestions", json={})
     again = client.post("/api/suggestions", json={}).json()
     assert again["cached"] and len(llm.calls) == 1
-    assert not client.post("/api/suggestions", json={"refresh": True}).json()["cached"] and len(llm.calls) == 2
+    refreshed = client.post("/api/suggestions", json={"refresh": True}).json()
+    assert not refreshed["cached"] and len(llm.calls) == 2
+    assert refreshed["generated_at"] and client.post("/api/suggestions", json={}).json()["generated_at"] == refreshed["generated_at"]  # 캐시에서 나와도 만든 때 그대로
 
 
 def bad(**override):
-    card = {"title": "빼빼로 진열", "body": "빼빼로데이가 9일 뒤예요.", "fact_ids": ["event:2026-11-11"]}
+    card = {"title": "빼빼로 진열", "short": "빼빼로데이가 9일 뒤예요.", "body": "빼빼로데이가 9일 뒤예요.", "fact_ids": ["event:2026-11-11"]}
     card.update(override)
     return {"cards": [card]}
 
@@ -198,7 +201,7 @@ def bad(**override):
     bad(body="**진열**하세요 https://example.com"),                                  # 서식·링크
     bad(title="가" * 31),                                                           # 너무 긺
     {"cards": []},                                                                  # 카드 없음
-    {"cards": [bad()["cards"][0], bad(title="빼빼로 진열 2")["cards"][0], bad(title="빼빼로 진열 3")["cards"][0], bad(title="빼빼로 진열 4")["cards"][0]]},  # 4개
+    {"cards": [bad()["cards"][0], bad(title="빼빼로 진열 2")["cards"][0], bad(title="빼빼로 진열 3")["cards"][0], bad(title="빼빼로 진열 4")["cards"][0], bad(title="빼빼로 진열 5")["cards"][0], bad(title="빼빼로 진열 6")["cards"][0]]},  # 6개(최대 5개)
 ])
 def test_bad_answers_are_rejected_then_retried_once_then_reported(setup, response):
     llm = FakeLLM(default=response)
@@ -211,8 +214,8 @@ def test_bad_answers_are_rejected_then_retried_once_then_reported(setup, respons
 def test_natural_reasons_such_as_market_day_or_weather_are_allowed(setup):
     """"장날이라 ~", "비 소식 때문에 ~"는 이유를 말하는 자연스러운 표현이라 막지 않습니다."""
     ok = {"cards": [
-        {"title": "장날 맞춤 진열", "body": "내일이 장날이라 오가는 손님이 많을 수 있어요. 간식을 앞에 두어 보세요.", "fact_ids": ["market"]},
-        {"title": "우산 챙기기", "body": "비 소식 때문에 계산대 옆에 우산을 놓아 보세요. 방학이라 일찍 닫는 학원도 있을 수 있어요.", "fact_ids": ["weather:내일", "vacation"]},
+        {"title": "장날 맞춤 진열", "short": "내일이 장날이라 오가는 손님이 많을 수 있어요.", "body": "내일이 장날이라 오가는 손님이 많을 수 있어요. 간식을 앞에 두어 보세요.", "fact_ids": ["market"]},
+        {"title": "우산 챙기기", "short": "비 소식 때문에 계산대 옆에 우산을 놓아 보세요.", "body": "비 소식 때문에 계산대 옆에 우산을 놓아 보세요. 방학이라 일찍 닫는 학원도 있을 수 있어요.", "fact_ids": ["weather:내일", "vacation"]},
     ]}
     body = setup(FakeLLM(default=ok)).post("/api/suggestions", json={}).json()
     assert body["status"] == "ok" and len(body["cards"]) == 2
@@ -307,9 +310,9 @@ def test_students_fact_uses_schools_or_academies(schools, academies, expected, a
 def test_cards_on_the_same_core_fact_are_merged_into_the_first(setup):
     def overlapping(system, user):
         return {"cards": [
-            {"title": "학생 간식 진열", "body": "근처에 학교가 3곳 있어서 간식을 모아 두면 좋아요.", "fact_ids": ["students", "places:500"]},
-            {"title": "방과 후 준비", "body": "근처에 학교가 3곳 있어서 저녁 재고를 살펴보면 좋아요.", "fact_ids": ["students", "schools:near"]},
-            {"title": "내일은 우산 챙겨 두세요", "body": "내일 비 소식이 있어서 우산을 놓아 보세요.", "fact_ids": ["weather:내일"]},
+            {"title": "학생 간식 진열", "short": "근처에 학교가 3곳 있어서 간식을 모아 두면 좋아요.", "body": "근처에 학교가 3곳 있어서 간식을 모아 두면 좋아요.", "fact_ids": ["students", "places:500"]},
+            {"title": "방과 후 준비", "short": "근처에 학교가 3곳 있어서 저녁 재고를 살펴보면 좋아요.", "body": "근처에 학교가 3곳 있어서 저녁 재고를 살펴보면 좋아요.", "fact_ids": ["students", "schools:near"]},
+            {"title": "내일은 우산 챙겨 두세요", "short": "내일 비 소식이 있어서 우산을 놓아 보세요.", "body": "내일 비 소식이 있어서 우산을 놓아 보세요.", "fact_ids": ["weather:내일"]},
         ]}
 
     body = setup(FakeLLM([overlapping])).post("/api/suggestions", json={}).json()
@@ -351,8 +354,8 @@ def test_analysis_cards_come_first_and_are_marked_apart_from_ideas(setup, monkey
 
     def mixed(system, user):
         return {"cards": [
-            {"title": "내일은 우산 챙겨 두세요", "body": "내일 비 소식이 있어서 계산대 옆에 우산을 놓아 보세요.", "fact_ids": ["weather:내일"]},
-            {"title": "삼각김밥 수량 점검", "body": "참치마요 삼각김밥이 최근 5회 일찍 품절됐어요. 소량 바꿔 보고 확인해 보세요.", "fact_ids": ["stock:F001"]},
+            {"title": "내일은 우산 챙겨 두세요", "short": "내일 비 소식이 있어서 계산대 옆에 우산을 놓아 보세요.", "body": "내일 비 소식이 있어서 계산대 옆에 우산을 놓아 보세요.", "fact_ids": ["weather:내일"]},
+            {"title": "삼각김밥 수량 점검", "short": "참치마요 삼각김밥이 최근 5회 일찍 품절됐어요.", "body": "참치마요 삼각김밥이 최근 5회 일찍 품절됐어요. 소량 바꿔 보고 확인해 보세요.", "fact_ids": ["stock:F001"]},
         ]}
 
     client = setup(FakeLLM(default=mixed))
@@ -367,9 +370,53 @@ def test_analysis_cards_come_first_and_are_marked_apart_from_ideas(setup, monkey
 
 def test_a_card_that_mixes_analysis_and_outside_facts_is_refused(setup):
     def mixing(system, user):
-        return {"cards": [{"title": "삼각김밥과 비 소식", "body": "내일 비 소식이 있고 삼각김밥이 일찍 품절됐어요. 소량 바꿔 보세요.", "fact_ids": ["stock:F001", "weather:내일"]}]}
+        return {"cards": [{"title": "삼각김밥과 비 소식", "short": "삼각김밥이 일찍 품절됐어요.", "body": "내일 비 소식이 있고 삼각김밥이 일찍 품절됐어요. 소량 바꿔 보세요.", "fact_ids": ["stock:F001", "weather:내일"]}]}
 
     client = setup(FakeLLM(default=mixing))
     _load_stock(client)
     out = client.post("/api/suggestions", json={}).json()
     assert out["status"] == "failed" and any("섞었어요" in r for r in out["reasons"])
+
+
+def _card(**over):
+    base = {"title": "빼빼로 진열", "short": "빼빼로데이가 9일 뒤예요.", "body": "빼빼로데이가 9일 뒤예요. 입구 쪽에 놓아 보세요.", "fact_ids": ["event:2026-11-11"]}
+    return {**base, **over}
+
+
+@pytest.mark.parametrize("over,needle", [
+    ({"short": ""}, "비어"),
+    ({"short": "가" * (suggestions.MAX_SHORT + 1)}, "너무 길"),
+    ({"short": "빼빼로데이가 77일 뒤예요."}, "숫자"),
+])
+def test_the_short_summary_is_limited_by_the_response_shape_and_checked_like_the_body(over, needle):
+    facts = [{"id": "event:2026-11-11", "group": "행사", "text": "빼빼로데이가 9일 뒤예요."}]
+    with pytest.raises(GuardError) as e:
+        suggestions.validate({"cards": [_card(**over)]}, facts)
+    assert needle in " ".join(e.value.reasons)
+
+
+def test_a_missing_short_is_refused_and_never_cut_from_the_body():
+    facts = [{"id": "event:2026-11-11", "group": "행사", "text": "빼빼로데이가 9일 뒤예요."}]
+    card = _card()
+    del card["short"]
+    with pytest.raises(GuardError):
+        suggestions.validate({"cards": [card]}, facts)
+    ok = suggestions.validate({"cards": [_card()]}, facts)
+    assert ok[0]["short"] == "빼빼로데이가 9일 뒤예요." and ok[0]["body"].endswith("놓아 보세요.")  # 원문은 그대로
+
+
+def test_a_real_rate_like_100_percent_from_the_facts_is_not_mistaken_for_a_claim():
+    facts = [{"id": "stock:F001", "group": suggestions.STOCK_GROUP, "text": "참치마요는 최근 5회 일찍 품절됐고 소진율 100%, 폐기율 0%였어요."}]
+    card = {"title": "참치마요 점검", "short": "최근 5회 일찍 품절됐어요.", "body": "소진율 100%, 폐기율 0%였어요. 소량 바꿔 보고 확인해 보세요.", "fact_ids": ["stock:F001"]}
+    assert suggestions.validate({"cards": [card]}, facts)[0]["kind"] == "analysis"
+    for bad in ("100% 확실해요", "100%  잘 팔려요"):
+        with pytest.raises(GuardError):
+            suggestions.validate({"cards": [{**card, "body": bad}]}, facts)
+
+
+def test_up_to_five_cards_are_allowed_and_six_are_refused():
+    facts = [{"id": f"f{i}", "group": "외부", "text": f"사실 {i}번이에요."} for i in range(6)]
+    card = lambda i: {"title": f"주제 {i}", "short": f"주제 {i}번 제안이에요.", "body": f"사실 {i}번이 있어서 확인해 보세요.", "fact_ids": [f"f{i}"]}  # noqa: E731
+    assert len(suggestions.validate({"cards": [card(i) for i in range(5)]}, facts)) == 5
+    with pytest.raises(GuardError):
+        suggestions.validate({"cards": [card(i) for i in range(6)]}, facts)
