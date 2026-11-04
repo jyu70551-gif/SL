@@ -3206,7 +3206,9 @@ textarea:focus-visible {
 
 /* 요즘 뜨는 식품 (오늘 보기) */
 .td-page {
+  width: 100%;
   max-width: 960px;
+  margin-inline: auto;
 }
 
 .td-lead {

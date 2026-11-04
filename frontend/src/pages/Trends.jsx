@@ -6,12 +6,14 @@ import { request } from "../api.js";
 const BLOCKED = {
   no_token: "수집 설정(Apify 키)이 아직 없어서 가져올 수 없어요.",
   ai_unavailable: "AI를 지금 쓸 수 없어서 상품 이름을 찾을 수 없어요.",
+  run_cap_low: "한 번에 쓸 수 있는 비용 상한이 낮아서 가져올 수 없어요. 설정(APIFY_RUN_MAX_USD)을 올려 주세요.",
 };
 const FAIL = {
   no_token: "수집 설정(Apify 키)이 아직 없어요.",
   ai_unavailable: "AI를 지금 쓸 수 없어요. 게시물을 받기 전에 멈춰서 비용은 들지 않았어요.",
   busy: "이미 가져오는 중이에요. 잠시 뒤 결과를 확인해 주세요.",
   monthly_limit: "이번 달 수집 한도에 닿아서 가져오지 않았어요. 다음 달에 다시 가져올 수 있어요.",
+  run_cap_low: "한 번에 쓸 수 있는 비용 상한이 낮아서 가져오지 않았어요(돈은 쓰지 않았어요). 설정(APIFY_RUN_MAX_USD)을 올려 주세요.",
   timeout: "응답이 너무 늦어서 멈췄어요. 잠시 뒤 다시 눌러 주세요.",
   payment: "Apify 사용 한도나 결제 문제로 가져오지 못했어요. Apify 계정을 확인해 주세요.",
   network: "연결에 실패했어요. 잠시 뒤 다시 눌러 주세요.",

@@ -60,10 +60,16 @@ def status(db: Session, ai, now: datetime | None = None) -> dict:
     today = kst_today(now).isoformat()
     token = bool(config.read_env_key("APIFY_TOKEN", config.AI_ENV_FILE))
     done_today = bool(snap and snap.get("day") == today)
-    reason = None if (token and ai.state() == "ready" and not done_today) else ("done_today" if done_today else "no_token" if not token else "ai_unavailable")
     lim = trend_apify.limits()
+    cap_low = run_cost(lim) > lim["run_max_usd"]
+    reason = None if (token and ai.state() == "ready" and not done_today and not cap_low) else ("done_today" if done_today else "no_token" if not token else "ai_unavailable" if ai.state() != "ready" else "run_cap_low")
     return {"snapshot": snap, "today": today, "can_collect": reason is None, "blocked": reason,
             "month_used": trend_apify.month_used(db, now), "monthly_limit": lim["monthly_results"], "max_results": len(trend_apify.SEEDS) * lim["per_hashtag"]}
+
+
+def run_cost(lim: dict) -> float:
+    """한 번 실행의 어림 최대 비용(달러). 결과 건수 × 건당 가격."""
+    return len(trend_apify.SEEDS) * lim["per_hashtag"] / 1000 * trend_apify.PRICE_PER_1000
 
 
 def excerpt(text: str) -> str:
@@ -118,6 +124,8 @@ def run(db: Session, token: str, ai, post=None, now: datetime | None = None) -> 
         lim = trend_apify.limits()
         tags = list(trend_apify.SEEDS)
         estimate = len(tags) * lim["per_hashtag"]
+        if run_cost(lim) > lim["run_max_usd"]:  # 상한이 낮으면 Apify 가 중간에 멈춰 일부 해시태그만 받게 되므로, 돈을 쓰기 전에 막습니다
+            raise trend_apify.ApifyError("run_cap_low", f"한 번 실행의 어림 비용(약 {run_cost(lim):.2f}달러)이 비용 상한({lim['run_max_usd']}달러)보다 커서 가져오지 않았어요. 상한(APIFY_RUN_MAX_USD)을 올리거나 해시태그당 건수를 줄여 주세요.")
         used = trend_apify.month_used(db, now)
         if used + estimate > lim["monthly_results"]:
             raise trend_apify.ApifyError("monthly_limit", f"이번 달 {used}건을 썼고 이번에 최대 {estimate}건이 더해져 월 한도({lim['monthly_results']}건)를 넘어요.")

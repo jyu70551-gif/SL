@@ -4,7 +4,7 @@
 
 제한 (모두 backend/.env 로 바꿀 수 있고, 바꾸기 전에 비용·약관을 먼저 확인하세요)
 - 공개 게시물만 받습니다. Instagram 로그인·쿠키를 넣지 않고, 비공개 계정에 접근하지 않습니다.
-- 해시태그당 APIFY_RESULTS_PER_HASHTAG(기본 30)건까지, 한 번 실행의 최대 비용은 APIFY_RUN_MAX_USD(기본 0.25달러, Apify 의 maxTotalChargeUsd)로 막고,
+- 해시태그당 APIFY_RESULTS_PER_HASHTAG(기본 30)건까지, 한 번 실행의 최대 비용은 APIFY_RUN_MAX_USD(기본 0.65달러, Apify 의 maxTotalChargeUsd)로 막고,
   이번 달 받은 결과 수가 APIFY_MONTHLY_RESULTS(기본 1500건)를 넘을 것 같으면 실행하지 않습니다.
 - 계정은 이름이 아니라 **해시한 값**으로만 다루고, 이미지·좋아요·댓글 수는 쓰지 않습니다. 캡션은 앞 200자만 씁니다.
 - 광고·협찬 표시는 이 공급원에서 알 수 없어서 표시하지 않습니다.
@@ -26,8 +26,8 @@ ACTOR_URL = "https://api.apify.com/v2/actors/apify~instagram-hashtag-scraper/run
 PRICE_PER_1000 = 2.60  # 달러. Apify 공식 페이지의 무료 플랜 가격(상단 표시 최저가는 1.90달러로 다름). 어림 계산에만 씁니다.
 CAPTION_CHARS = 200
 SYNC_TIMEOUT_SECONDS = 280  # Apify 의 동기 실행은 300초를 넘으면 408 을 돌려줍니다
-SEEDS = ["편의점신상", "편의점디저트", "편의점간식"]  # 오늘 보기가 최근 게시물을 받는 해시태그
-DEFAULTS = {"APIFY_RESULTS_PER_HASHTAG": "30", "APIFY_RUN_MAX_USD": "0.25", "APIFY_MONTHLY_RESULTS": "1500"}
+SEEDS = ["편의점신상", "편의점디저트", "편의점간식", "gs25신상", "cu신상", "세븐일레븐신상", "이마트24신상"]  # 오늘 보기가 최근 게시물을 받는 해시태그. 앞 셋은 일반 태그, 뒤 넷은 브랜드별 신상 태그(서로 다른 글이 잡히게)
+DEFAULTS = {"APIFY_RESULTS_PER_HASHTAG": "30", "APIFY_RUN_MAX_USD": "0.65", "APIFY_MONTHLY_RESULTS": "1500"}  # 7개 × 30건 = 210건 ≈ 0.55달러가 상한 안에 들어가게
 
 
 class ApifyError(Exception):

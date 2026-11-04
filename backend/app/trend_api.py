@@ -8,7 +8,7 @@ from app.auth import get_db, require_auth
 
 router = APIRouter(prefix="/api/trends", tags=["trends"], dependencies=[Depends(require_auth)])
 
-ERRORS = {"no_token": 503, "ai_unavailable": 503, "busy": 409, "monthly_limit": 429, "unauthorized": 502, "payment": 502, "forbidden": 502, "timeout": 504, "rate_limit": 502, "http": 502, "network": 502, "bad_response": 502}
+ERRORS = {"no_token": 503, "ai_unavailable": 503, "busy": 409, "monthly_limit": 429, "run_cap_low": 409, "unauthorized": 502, "payment": 502, "forbidden": 502, "timeout": 504, "rate_limit": 502, "http": 502, "network": 502, "bad_response": 502}
 
 
 @router.get("/today")

@@ -126,3 +126,25 @@ def test_a_listed_product_with_safety_posts_is_marked_with_their_count(db):
     foods = {f["name"]: f for f in snap["items"]}
     assert foods["피자설기"]["posts"] == 2 and foods["피자설기"]["safety_posts"] == 2  # 순위에는 안 세고 표시용으로만 셈
     assert foods["생초코 찹쌀떡"]["safety_posts"] == 0
+
+
+def test_seven_distinct_hashtags_are_requested_in_one_run_within_the_cost_cap(db):
+    calls = []
+    trend_today.run(db, TOKEN, ai_with(db, FakeLLM(default=good_names)), fake(DISCOVERY_ITEMS, calls), NOW)
+    body, params = calls[0][1], calls[0][2]
+    assert body["hashtags"] == trend_apify.SEEDS and len(set(body["hashtags"])) == 7
+    assert params["maxItems"] == 210 and params["maxTotalChargeUsd"] >= 0.55  # 7 × 30건 ≈ 0.55달러가 상한 안에 들어옴
+    assert trend_today.status(db, ai_with(db, FakeLLM(default=good_names)), NOW)["max_results"] == 210
+
+
+def test_a_cost_cap_lower_than_one_run_blocks_before_any_paid_call(db, monkeypatch):
+    monkeypatch.setenv("APIFY_RUN_MAX_USD", "0.25")  # 점주 .env 에 옛 값이 남아 있는 경우
+    original = trend_today.config.read_env_key
+    monkeypatch.setattr(trend_today.config, "read_env_key", lambda name, path=None: TOKEN if name == "APIFY_TOKEN" else original(name, path))  # 토큰만 있는 것처럼
+    calls = []
+    ai = ai_with(db, FakeLLM(default=good_names))
+    with pytest.raises(ApifyError) as e:
+        trend_today.run(db, TOKEN, ai, fake(DISCOVERY_ITEMS, calls), NOW)
+    assert e.value.code == "run_cap_low" and calls == [] and "APIFY_RUN_MAX_USD" in e.value.hint
+    s = trend_today.status(db, ai, NOW)
+    assert s["can_collect"] is False and s["blocked"] == "run_cap_low"

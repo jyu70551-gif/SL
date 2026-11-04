@@ -133,7 +133,7 @@ def test_the_token_goes_in_the_authorization_header_never_in_the_url(monkeypatch
 
 # ---------------------------------------------------------------- 한도
 def test_default_limits_and_env_overrides(monkeypatch):
-    assert trend_apify.limits() == {"per_hashtag": 30, "run_max_usd": 0.25, "monthly_results": 1500}
+    assert trend_apify.limits() == {"per_hashtag": 30, "run_max_usd": 0.65, "monthly_results": 1500}
     monkeypatch.setenv("APIFY_RESULTS_PER_HASHTAG", "100")
     monkeypatch.setenv("APIFY_RUN_MAX_USD", "0.9")
     assert trend_apify.limits()["per_hashtag"] == 100 and trend_apify.limits()["run_max_usd"] == 0.9

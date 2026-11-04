@@ -34,3 +34,18 @@ def test_usable_name_rules():
 def test_without_ai_nothing_is_extracted(db):
     posts = [{"id": 1, "text": "피자설기", "author": "a"}, {"id": 2, "text": "피자설기", "author": "b"}]
     assert trend_discover.extract(ai_with(db, None), posts) == []
+
+
+def test_all_posts_of_a_seven_hashtag_run_reach_the_ai_but_not_more_than_the_limit(db):
+    seen = []
+
+    def capture(system, user):
+        import json
+
+        seen.append(len(json.loads(user)["posts"]))
+        return {"foods": []}
+
+    posts = [{"id": i, "text": f"글 {i}", "author": f"a{i}"} for i in range(1, 401)]
+    trend_discover.extract(ai_with(db, FakeLLM(default=capture)), posts[:210])
+    trend_discover.extract(ai_with(db, FakeLLM(default=capture)), posts)
+    assert seen == [210, trend_discover.MAX_POSTS_SENT] and trend_discover.MAX_POSTS_SENT == 300
