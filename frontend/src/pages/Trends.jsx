@@ -34,6 +34,11 @@ function FoodCard({ food }) {
       <p className="td-counts">
         수집 게시물 <strong>{food.posts}건</strong> · 작성 계정 {food.accounts}곳
       </p>
+      {food.safety_posts > 0 && (
+        <p className="td-safety-tag">
+          <span aria-hidden="true">⚠ </span>이 상품은 안전 관련 언급이 있어요(게시물 {food.safety_posts}건). 위 건수에는 세지 않았어요. 아래 &ldquo;안전 관련 언급&rdquo;에서 확인하고, 공식 공지도 확인해 주세요.
+        </p>
+      )}
       <button type="button" className="td-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
         근거 게시물 {food.posts}건 보기 <span aria-hidden="true">{open ? "⌃" : "›"}</span>
       </button>

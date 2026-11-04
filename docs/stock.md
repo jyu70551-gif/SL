@@ -3,9 +3,9 @@
 판매량이 늘었는지가 아니라 **준비한 상품이 반복해서 얼마나 소진됐나**를 봅니다. 통계가 신호를 찾고, AI는 근거와 확인 질문만 설명하는 구성입니다. (쉬운 설명과 기준값의 근거는 [stats-guide.md](stats-guide.md) 6장)
 
 ## 상태
-- 만든 것: 계산 엔진 [stock.py](../backend/app/stock.py), 저장 표 `stock_daily`(마이그레이션 0011), 홈용 요약 주소 `GET /api/stock/summary`([stock_api.py](../backend/app/stock_api.py)), 홈 "집중 관리 식품군" 안의 상품별 소진율·폐기율·신호([StockSignals.jsx](../frontend/src/components/StockSignals.jsx)), 가짜 자료 만들기 [make_stock_data.py](../backend/tools/make_stock_data.py), 랩 DB에 넣기 [load_stock_csv.py](../backend/tools/load_stock_csv.py), 시험 [test_stock.py](../backend/tests/test_stock.py)
+- 만든 것: 계산 엔진 [stock.py](../backend/app/stock.py), 저장 표 `stock_daily`(마이그레이션 0011), 홈용 요약 주소 `GET /api/stock/summary`([stock_api.py](../backend/app/stock_api.py)), 홈 "식품 발주 점검"의 상품별 소진율·폐기율·신호([StockSignals.jsx](../frontend/src/components/StockSignals.jsx)), 가짜 자료 만들기 [make_stock_data.py](../backend/tools/make_stock_data.py), 랩 DB에 넣기 [load_stock_csv.py](../backend/tools/load_stock_csv.py), 시험 [test_stock.py](../backend/tests/test_stock.py)
 - 안 만든 것: 입출고 파일 올리기 화면, AI 문장. 실제 자료를 받을 수 없어 형식을 가정하고 시작했습니다. 시연 DB에는 `load_stock_csv.py`로 가짜 자료를 넣습니다.
-- **Supabase에는 `alembic upgrade head`(0008~0011)를 직접 실행해야 합니다.** `stock_daily`를 필수 표로 확인하므로 실행 전에는 서버가 시작되지 않습니다(0008~0010도 같습니다).
+- **Supabase에는 `alembic upgrade head`(0008~0013, 이 기능은 0011)를 직접 실행해야 합니다.** `stock_daily`를 필수 표로 확인하므로 실행 전에는 서버가 시작되지 않습니다(0008~0010도 같습니다).
 
 ## 가정한 자료 형식 (CSV 열 이름)
 `일자, 점포코드, 상품코드, 상품명, 카테고리, 기초재고, 입고수량, 매입단가, 유통기한, 공급업체, 판매수량, 폐기수량, 반품수량, 판매단가, 행사, 기말재고, 적정재고, 품절시각`

@@ -1,22 +1,16 @@
-"""'요즘 뜨는 식품' 자동 발견 (docs/trends.md 9장). 점주가 식품이나 해시태그를 고르지 않아도 되게, 편의점 신상 해시태그의 최근 게시물에서 상품 이름 후보를 찾아 스스로 등록합니다.
+"""'요즘 뜨는 식품' 자동 발견 (docs/trends.md 9장). 점주가 식품이나 해시태그를 고르지 않아도 되게, 편의점 신상 해시태그의 최근 게시물에서 상품 이름 후보를 찾습니다.
 
 - AI 는 캡션에서 **상품 이름 후보**만 뽑습니다. 개수·순위는 코드가 세고, AI 는 숫자를 만들지 않습니다.
 - 지어낸 이름이 순위에 오르지 않게 코드가 검사합니다: ① 이름이 근거로 든 게시물 캡션에 **글자 그대로** 있어야 하고(띄어쓰기는 무시),
   ② 서로 다른 게시물 2건 이상, 서로 다른 계정 2곳 이상에서 나와야 하며, ③ 브랜드 이름·"도시락"·"젤리" 같은 일반 이름은 상품이 아니라서 뺍니다.
   별칭도 근거 캡션에 실제로 있는 것만 받습니다.
-- 발견용 게시물은 공급원 이름이 `instagram_discovery` 이고 **순위 계산에 세지 않습니다**(상한에 거의 항상 걸려 일부만 본 것이라서). 순위는 등록된 식품 자신의 해시태그로 따로 모은 게시물로만 셉니다.
-- 자동 등록은 추적 해시태그 한도(APIFY_MAX_HASHTAGS)가 남아 있을 때만 합니다. 추적 목록이 자주 바뀌면 수집 범위가 달라져 비교가 막히기 때문입니다.
 """
 import json
 import logging
 import re
 
-from sqlalchemy.orm import Session
-
-from app import trend
 from app.ai.client import AiError
 from app.ai.guard import MARKUP_RE, SECRET_RE, GuardError
-from app.models import TrendFood
 
 logger = logging.getLogger("sl.trend")
 
@@ -125,26 +119,3 @@ def extract(ai, posts: list[dict]) -> list[dict]:
             logger.warning("상품 후보 뽑기 실패(%s)", error.code)
             return []
     return []
-
-
-def register(db: Session, candidates: list[dict], slots: int) -> list[TrendFood]:
-    """검증된 후보를 식품으로 등록합니다(이미 같은 이름이 있으면 그것을 씀). slots 만큼만 새로 등록합니다."""
-    from sqlalchemy import select
-
-    existing = {_squeeze(f.name): f for f in db.scalars(select(TrendFood))}
-    out, added = [], 0
-    for c in candidates:
-        found = existing.get(_squeeze(c["name"]))
-        if found is not None:
-            out.append(found)
-            continue
-        if added >= slots:
-            break
-        food = TrendFood(name=c["name"], brand="", aliases=json.dumps(c["aliases"], ensure_ascii=False), kind="product")
-        db.add(food)
-        db.flush()
-        existing[_squeeze(c["name"])] = food
-        out.append(food)
-        added += 1
-    db.commit()
-    return out

@@ -20,7 +20,6 @@ router = APIRouter(prefix="/api/home", tags=["home"], dependencies=[Depends(requ
 
 MIN_SAME_WEEKDAY_DAYS = 3
 MAX_SAME_WEEKDAY_DAYS = 4
-INSTANT_FOOD_CATEGORIES = ["간편식사", "즉석조리"]
 WEEKDAYS = "월화수목금토일"
 
 
@@ -103,26 +102,6 @@ def build_home_summary(db: Session) -> dict:
             amount_change_pct=_change_pct(today_amount, base_amount),
         )
 
-    instant_items = []
-    for category in INSTANT_FOOD_CATEGORIES:
-        qty = today_cats.get(category, (0, 0))[0]
-        item: dict = {
-            "category": category,
-            "today_quantity": qty,
-            "status": "ready" if ready else "not_enough",
-            **common,
-        }
-        if ready:
-            values = [totals[d].get(category, (0, 0))[0] for d in used_dates]
-            low, high = min(values), max(values)
-            item.update(
-                baseline_quantity=round(sum(values) / len(values), 1),
-                range_min=low,
-                range_max=high,
-                verdict="high" if qty > high else "low" if qty < low else "normal",
-            )
-        instant_items.append(item)
-
     return {
         "has_data": True,
         "date": today.isoformat(),
@@ -130,7 +109,6 @@ def build_home_summary(db: Session) -> dict:
         "cutoff_hour": hour,
         "today": {"total_amount": today_amount, "total_quantity": today_qty},
         "comparison": comparison,
-        "instant_food": instant_items,
     }
 
 

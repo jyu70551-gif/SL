@@ -10,13 +10,14 @@
 import json
 import re
 import threading
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from app import config, trend, trend_apify, trend_discover
+from app import config, trend_apify, trend_discover
 from app.models import AppSetting
 
+KST = timezone(timedelta(hours=9))
 KEY = "trend_today"
 MIN_POSTS_SHOWN = 2  # 상품 이름이 서로 다른 게시물 2건 미만이면 보여 주지 않습니다(trend_discover.MIN_POSTS 와 같음)
 # 안전 게시물 단어(띄어쓰기 무시). 놓치는 것이 과하게 걸리는 것보다 위험해서 넓게 잡습니다. 검증 전 목록이라 실제 결과를 보고 고칩니다.
@@ -27,6 +28,11 @@ MAX_EVIDENCE = 5  # 상품마다 보여 줄 근거 게시물 수
 EMOJI_RE = re.compile("[🀀-🫿☀-➿️‍]")
 SNIPPET_CHARS = 80
 _lock = threading.Lock()  # 버튼을 연달아 눌러도 실행은 한 번만
+
+
+def kst_today(now: datetime) -> date:
+    """서버가 쓰는 UTC 시각(시간대 정보 없음)을 한국 날짜로"""
+    return now.replace(tzinfo=timezone.utc).astimezone(KST).date()
 
 
 def read(db: Session) -> dict | None:
@@ -51,7 +57,7 @@ def status(db: Session, ai, now: datetime | None = None) -> dict:
     """화면이 처음 받는 값: 저장된 결과와, 지금 버튼을 눌러도 되는지."""
     now = now or datetime.utcnow()
     snap = read(db)
-    today = trend.kst_today(now.replace(tzinfo=timezone.utc)).isoformat()
+    today = kst_today(now).isoformat()
     token = bool(config.read_env_key("APIFY_TOKEN", config.AI_ENV_FILE))
     done_today = bool(snap and snap.get("day") == today)
     reason = None if (token and ai.state() == "ready" and not done_today) else ("done_today" if done_today else "no_token" if not token else "ai_unavailable")
@@ -80,15 +86,18 @@ def warnings_for(safety_posts: list[dict], candidates: list[dict]) -> list[dict]
     return out
 
 
-def count_foods(candidates: list[dict], posts: list[dict]) -> list[dict]:
-    """후보 이름(과 별칭)이 들어 있는 게시물을 전체에서 다시 세어 순위를 만듭니다. AI 가 말한 건수는 쓰지 않습니다."""
+def count_foods(candidates: list[dict], posts: list[dict], safety: list[dict] = ()) -> list[dict]:
+    """후보 이름(과 별칭)이 들어 있는 게시물을 전체에서 다시 세어 순위를 만듭니다. AI 가 말한 건수는 쓰지 않습니다.
+
+    safety: 순위에 세지 않은 안전 게시물. 그 상품 이름이 들어 있는 안전 게시물 수를 `safety_posts` 로 함께 돌려줘서, 회수 소식이 있는 상품이 목록에 있어도 표시할 수 있게 합니다."""
     out = []
     for c in candidates:
         keys = [trend_discover._squeeze(n) for n in [c["name"], *c["aliases"]]]
         hit = [p for p in posts if any(k in trend_discover._squeeze(p["text"]) for k in keys)]
         accounts = {p["author"] for p in hit}
+        unsafe = sum(1 for p in safety if any(k in trend_discover._squeeze(p["text"]) for k in keys))
         if len(hit) >= MIN_POSTS_SHOWN and len(accounts) >= trend_discover.MIN_ACCOUNTS:
-            out.append({"name": c["name"], "aliases": c["aliases"], "posts": len(hit), "accounts": len(accounts), "evidence": [{"text": excerpt(p["text"]), "url": p["url"], "posted_on": p["posted_on"]} for p in hit if p["url"]][:MAX_EVIDENCE]})
+            out.append({"name": c["name"], "aliases": c["aliases"], "posts": len(hit), "accounts": len(accounts), "safety_posts": unsafe, "evidence": [{"text": excerpt(p["text"]), "url": p["url"], "posted_on": p["posted_on"]} for p in hit if p["url"]][:MAX_EVIDENCE]})
     out.sort(key=lambda f: (-f["posts"], -f["accounts"], f["name"]))
     return out
 
@@ -97,7 +106,7 @@ def run(db: Session, token: str, ai, post=None, now: datetime | None = None) -> 
     """오늘 결과를 만듭니다. 오늘 이미 받았으면 호출하지 않고 저장된 결과를 돌려줍니다. 실패하면 ApifyError(결과는 바꾸지 않음)."""
     post = post or trend_apify.apify_post
     now = now or datetime.utcnow()
-    today = trend.kst_today(now.replace(tzinfo=timezone.utc)).isoformat()
+    today = kst_today(now).isoformat()
     snap = read(db)
     if snap and snap.get("day") == today:
         return snap
@@ -126,12 +135,12 @@ def run(db: Session, token: str, ai, post=None, now: datetime | None = None) -> 
             if c and c["source_id"] not in seen:
                 seen.add(c["source_id"])
                 posts.append({"id": len(posts) + 1, "text": c["text"], "author": c["author_key"] or c["source_id"], "url": c["url"],
-                              "posted_on": c["posted_at"].replace(tzinfo=timezone.utc).astimezone(trend.KST).date().isoformat()})
+                              "posted_on": c["posted_at"].replace(tzinfo=timezone.utc).astimezone(KST).date().isoformat()})
         safety = [p for p in posts if is_safety(p["text"])]
         normal = [p for p in posts if not is_safety(p["text"])]
         candidates = trend_discover.extract(ai, posts)  # 이름 찾기는 전체 글로(주의 목록에 상품 이름을 붙이려고). 건수는 아래에서 안전 글을 뺀 것만 셉니다
         snap = {"day": today, "collected_at": now.replace(microsecond=0).isoformat(), "tags": tags, "received": len(items), "unique_posts": len(posts),
-                "per_hashtag": lim["per_hashtag"], "items": count_foods(candidates, normal), "safety_posts": len(safety), "posted_range": [min(p["posted_on"] for p in posts), max(p["posted_on"] for p in posts)] if posts else None, "warnings": warnings_for(safety, candidates)}
+                "per_hashtag": lim["per_hashtag"], "items": count_foods(candidates, normal, safety), "safety_posts": len(safety), "posted_range": [min(p["posted_on"] for p in posts), max(p["posted_on"] for p in posts)] if posts else None, "warnings": warnings_for(safety, candidates)}
         _save(db, snap)
         return snap
     finally:

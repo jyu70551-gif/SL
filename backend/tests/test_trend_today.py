@@ -114,3 +114,15 @@ def test_a_product_named_only_in_safety_posts_is_named_in_the_warning_but_not_ra
     snap = trend_today.run(db, TOKEN, ai_with(db, FakeLLM(default=names)), fake(recall), NOW)
     assert snap["items"] == [] and snap["safety_posts"] == 3
     assert snap["warnings"][0]["foods"] == ["한정선피스타치오찹쌀떡"]
+
+
+def test_a_listed_product_with_safety_posts_is_marked_with_their_count(db):
+    from tests.test_trend_apify import post_item
+
+    normal = [post_item(20 + i, "피자설기 후기 " + str(i), owner=f"n{i}") for i in range(2)]
+    recall = [post_item(30, "피자설기 대장균 검출 회수 소식", owner="r1"), post_item(31, "피자 설기 판매 중단 안내", owner="r2")]
+    other = [post_item(40 + i, "생초코 찹쌀떡 후기 " + str(i), owner=f"m{i}") for i in range(2)]
+    snap = trend_today.run(db, TOKEN, ai_with(db, FakeLLM(default=good_names)), fake(normal + recall + other), NOW)
+    foods = {f["name"]: f for f in snap["items"]}
+    assert foods["피자설기"]["posts"] == 2 and foods["피자설기"]["safety_posts"] == 2  # 순위에는 안 세고 표시용으로만 셈
+    assert foods["생초코 찹쌀떡"]["safety_posts"] == 0

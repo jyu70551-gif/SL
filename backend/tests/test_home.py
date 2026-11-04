@@ -96,7 +96,6 @@ def test_same_category_on_several_lines_is_added_up(client):
         db.commit()
     data = summary(client)
     assert data["today"] == {"total_quantity": 5, "total_amount": 10000}
-    assert data["instant_food"][0]["today_quantity"] == 5
 
 
 def test_today_is_the_latest_date_not_the_latest_upload(client):
@@ -178,44 +177,6 @@ def test_decrease_is_negative(client):
     for day in WEDNESDAYS[:3]:
         add_day(client, day, {"음료": (10, 10000)})
     assert summary(client)["comparison"]["amount_change_pct"] == -20.0
-
-
-# --- 즉석식품 요약 ------------------------------------------------------------------------
-
-
-def test_instant_food_lists_the_two_categories_in_order(client):
-    add_day(client, TODAY, {"간편식사": (4, 8000), "즉석조리": (2, 3000), "음료": (9, 9000)})
-    items = summary(client)["instant_food"]
-    assert [i["category"] for i in items] == ["간편식사", "즉석조리"]
-    assert [i["today_quantity"] for i in items] == [4, 2]
-
-
-def test_instant_food_not_enough_data_keeps_today_number(client):
-    add_day(client, TODAY, {"간편식사": (4, 8000)})
-    item = summary(client)["instant_food"][0]
-    assert item["status"] == "not_enough"
-    assert item["today_quantity"] == 4
-    assert item["needed_more"] == 3
-    assert "verdict" not in item
-
-
-@pytest.mark.parametrize(
-    "today_qty, verdict",
-    [(9, "high"), (6, "normal"), (5, "normal"), (8, "normal"), (4, "low"), (0, "low")],
-)
-def test_instant_food_verdict_against_the_usual_range(client, today_qty, verdict):
-    add_day(client, TODAY, {"간편식사": (today_qty, today_qty * 2000)})
-    for day, qty in zip(WEDNESDAYS[:3], [5, 6, 8]):  # 평소 범위 5~8
-        add_day(client, day, {"간편식사": (qty, qty * 2000)})
-    item = summary(client)["instant_food"][0]
-    assert item["range_min"] == 5 and item["range_max"] == 8
-    assert item["verdict"] == verdict
-
-
-def test_missing_instant_food_category_counts_as_zero(client):
-    add_day(client, TODAY, {"음료": (3, 3000)})  # 간편식사 줄이 파일에 없음
-    item = summary(client)["instant_food"][0]
-    assert item["today_quantity"] == 0
 
 
 def test_home_reports_the_dates_used_for_the_baseline(client):

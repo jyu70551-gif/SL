@@ -139,7 +139,7 @@ def test_one_command_creates_all_tables_and_matches_the_models(tmp_path):
     with engine.connect() as conn:
         # 변경 기록과 모델(models.py)이 어긋나지 않는다.
         assert compare_metadata(MigrationContext.configure(conn), Base.metadata) == []
-        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0012"
+        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0013"
 
 
 def test_running_it_again_does_not_apply_changes_twice(tmp_path):
@@ -179,3 +179,21 @@ def test_postgresql_sql_preview_has_the_expected_tables():
     assert "CREATE UNIQUE INDEX ix_sales_uploads_sales_date" in sql
     assert "CREATE UNIQUE INDEX ix_auth_sessions_token_hash" in sql
     assert "INSERT INTO alembic_version" in sql
+
+
+def test_0013_drops_the_old_trend_tables_and_downgrade_brings_them_back(tmp_path):
+    """요즘 뜨는 식품의 옛 방식 표 6개(0012)는 0013 이 지우고, 되돌리면 다시 만들어집니다. 표가 이미 없어도 오류가 없어야 합니다."""
+    url = f"sqlite:///{tmp_path / 't.db'}"
+    old = ("trend_foods", "trend_contents", "trend_mentions", "trend_collections", "trend_explanations", "trend_favorites")
+    engine = run_upgrade(url, "0012")
+    assert set(old) <= set(inspect(engine).get_table_names())
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO trend_foods (name, brand, aliases, kind) VALUES ('가짜 상품', '', '[]', 'product')"))
+    run_upgrade(url, "0013")
+    names = set(inspect(engine).get_table_names())
+    assert not set(old) & names and {"app_settings", "stock_daily", "daily_sales"} <= names  # 다른 표는 그대로
+    cfg = alembic_config()
+    with engine.begin() as connection:
+        cfg.attributes["connection"] = connection
+        command.downgrade(cfg, "0012")
+    assert set(old) <= set(inspect(engine).get_table_names())
