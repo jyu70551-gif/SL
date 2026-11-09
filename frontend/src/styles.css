@@ -110,7 +110,8 @@ a {
 }
 
 .tab-bar .tab {
-  flex: 1;
+  flex: 1 1 0; /* 네 메뉴가 글자 길이와 상관없이 같은 폭 */
+  min-width: 0;
   max-width: 240px;
   height: var(--tab-height);
   display: flex;
@@ -118,7 +119,8 @@ a {
   justify-content: center;
   color: rgba(255, 255, 255, 0.78);
   text-decoration: none;
-  font-size: 0.95rem;
+  font-size: 0.8125rem;
+  white-space: nowrap;
 }
 
 .tab-bar .tab {
@@ -413,18 +415,339 @@ a {
   margin: 24px 0 8px;
 }
 
-.upload-list {
-  list-style: none;
-  margin: 0;
+/* ---------- 파일 올리기: 순서·결과·기록 ---------- */
+
+.up-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0 0 8px;
   padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+  color: var(--muted);
 }
 
-.upload-list li {
+.up-steps li {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.up-step-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.up-steps li.current {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.up-steps li.current .up-step-no {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.up-steps li.done .up-step-no {
+  background: var(--amber);
+  color: var(--amber-text);
+}
+
+.up-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.up-file-date {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.up-hint {
+  margin: -4px 0 0;
+}
+
+.form .button:disabled {
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  opacity: 1;
+}
+
+.up-error {
+  margin-top: 8px;
+}
+
+.up-error .problems {
+  margin-bottom: 0;
+}
+
+.up-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(31, 122, 77, 0.08);
+  border: 1px solid rgba(31, 122, 77, 0.35);
+}
+
+.up-result-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.up-result-title::before {
+  content: "\2713\FE0E ";
+  color: var(--up);
+}
+
+.up-result-list,
+.ucal-detail dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.up-result-list div,
+.ucal-detail dl div {
+  display: flex;
+  gap: 12px;
+}
+
+.up-result-list dt,
+.ucal-detail dt {
+  flex: none;
+  width: 4.5em;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.up-result-list dd,
+.ucal-detail dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.up-replaced {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 0.9375rem;
+}
+
+.up-result .button {
+  margin-top: 0;
+}
+
+.up-latest {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.up-latest-date {
+  font-size: 1.25rem;
+}
+
+.up-meta {
+  margin: 4px 0 0;
+  font-size: 0.8125rem;
+}
+
+.up-sub {
+  margin: 16px 0 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 0.9375rem;
+}
+
+/* 올려 둔 날짜 달력: 기록 있는 날 · 선택한 날 · 오늘을 서로 다르게 보여 줍니다 */
+
+.ucal {
+  max-width: 420px;
+  margin-inline: auto;
+}
+
+.ucal-head {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line);
+}
+
+.ucal-title-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ucal-title {
+  font-size: 1.0625rem;
+}
+
+.ucal-month-count {
+  font-size: 0.8125rem;
+}
+
+.ucal-latest {
+  margin-left: 8px;
+}
+
+.ucal-nav {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ucal-nav:disabled {
+  color: var(--line);
+  cursor: default;
+}
+
+.ucal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.ucal-weekday {
+  padding: 2px 0;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.ucal-blank {
+  min-height: 40px;
+}
+
+.ucal-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 40px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9375rem;
+}
+
+button.ucal-day {
+  cursor: pointer;
+}
+
+.ucal-day.has-data {
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.ucal-day.is-today {
+  border-color: var(--accent);
+}
+
+.ucal-day.is-selected {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.ucal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.ucal-day.is-selected .ucal-dot,
+.ucal-key.is-selected .ucal-dot {
+  background: var(--accent-text);
+}
+
+.ucal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 16px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.ucal-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ucal-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+.ucal-key.has-data {
+  background: var(--surface-2);
+}
+
+.ucal-key.is-selected {
+  background: var(--accent);
+}
+
+.ucal-key.is-today {
+  border-color: var(--accent);
+}
+
+.ucal-detail {
+  min-height: 3.5rem;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.ucal-detail p {
+  margin: 0;
+}
+
+button.ucal-day:focus-visible,
+.ucal-nav:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ---------- 확인이 필요한 대분류 · 그래프 ---------- */

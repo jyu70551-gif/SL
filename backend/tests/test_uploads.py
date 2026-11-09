@@ -103,6 +103,17 @@ def test_data_piles_up_across_days(client):
     assert count(client, DailySale) == 48
 
 
+def test_upload_list_shows_the_file_name_and_cutoff_hour(client):
+    assert upload(client, fixture_bytes("sample_2026-02-24.csv"), hour=8, filename="월요일.csv").status_code == 200
+    assert upload(client, fixture_bytes("sample_2026-02-25.csv"), hour=22, filename="화요일.csv").status_code == 200
+    listed = client.get("/api/uploads").json()
+    assert [(u["date"], u["filename"], u["cutoff_hour"]) for u in listed] == [("2026-02-25", "화요일.csv", 22), ("2026-02-24", "월요일.csv", 8)]
+    # 같은 날짜를 덮어쓰면 새 파일 이름과 시각으로 바뀐다
+    assert upload(client, fixture_bytes("sample_2026-02-25.csv"), hour=9, overwrite=True, filename="새파일.csv").json()["overwritten"] is True
+    again = client.get("/api/uploads").json()[0]
+    assert (again["filename"], again["cutoff_hour"]) == ("새파일.csv", 9)
+
+
 def test_file_without_total_row_is_accepted(client):
     raw = csv_text("01,간편식사,3,9600,2026,2,25,수", "02,즉석조리,2,2500,2026,2,25,수")
     assert upload(client, raw).status_code == 200

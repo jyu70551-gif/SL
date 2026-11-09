@@ -106,6 +106,7 @@ def list_uploads(db: Session = Depends(get_db)):
         {
             "date": u.sales_date.isoformat(),
             "cutoff_hour": u.cutoff_hour,
+            "filename": u.filename,
             "row_count": u.row_count,
             "uploaded_at": u.uploaded_at.isoformat() + "Z",
         }
