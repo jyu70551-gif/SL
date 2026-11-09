@@ -16,7 +16,7 @@ function messageFor(error) {
   return "문제가 생겼어요. 잠시 후 다시 시도해 주세요.";
 }
 
-const MIN_PASSWORD_LENGTH = 8;
+const MIN_PASSWORD_LENGTH = 2;
 
 function setupMessage(error) {
   if (!(error instanceof ApiError)) return "문제가 생겼어요. 잠시 후 다시 시도해 주세요.";

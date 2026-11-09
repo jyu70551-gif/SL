@@ -5,7 +5,7 @@ import { Card } from "./Card.jsx";
 const ERROR_TEXT = {
   wrong_password: "현재 비밀번호가 맞지 않아요.",
   mismatch: "새 비밀번호 두 개가 서로 달라요.",
-  too_short: "새 비밀번호는 8글자 이상이어야 해요.",
+  too_short: "새 비밀번호는 2글자 이상이어야 해요.",
 };
 
 export default function PasswordCard() {
@@ -37,7 +37,7 @@ export default function PasswordCard() {
       <form className="settings-form" onSubmit={submit}>
         <label htmlFor="pw-current">현재 비밀번호</label>
         <input id="pw-current" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
-        <label htmlFor="pw-new">새 비밀번호 (8글자 이상)</label>
+        <label htmlFor="pw-new">새 비밀번호 (2글자 이상)</label>
         <input id="pw-new" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
         <label htmlFor="pw-again">새 비밀번호 다시 입력</label>
         <input id="pw-again" type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} />

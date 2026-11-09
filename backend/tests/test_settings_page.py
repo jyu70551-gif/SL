@@ -156,8 +156,8 @@ def test_current_session_stays_and_other_devices_are_signed_out(client):
     [
         ({"current": "wrong-password-000"}, 400, "wrong_password"),
         ({"again": "different-password-1"}, 422, "mismatch"),
-        ({"new": "short", "again": "short"}, 422, "too_short"),
-        ({"new": "1234567", "again": "1234567"}, 422, "too_short"),
+        ({"new": "S", "again": "S"}, 422, "too_short"),
+        ({"new": "", "again": ""}, 422, "too_short"),
     ],
 )
 def test_bad_password_change_is_refused_and_the_old_password_stays(client, kwargs, status, code):
@@ -167,6 +167,6 @@ def test_bad_password_change_is_refused_and_the_old_password_stays(client, kwarg
     assert login(client, NEW_PASSWORD) == 401
 
 
-def test_exactly_eight_characters_are_allowed_and_no_mix_is_required(client):
-    assert change(client, new="abcdefgh").status_code == 200
-    assert login(client, "abcdefgh") == 200
+def test_exactly_two_characters_are_allowed_and_no_mix_is_required(client):
+    assert change(client, new="SL").status_code == 200
+    assert login(client, "SL") == 200

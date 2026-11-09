@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 # 비밀번호 규칙 (spec 1번, 7-2)
-MIN_PASSWORD_LENGTH = 8
+MIN_PASSWORD_LENGTH = 2
 MAX_FAILED_ATTEMPTS = 5
 LOCK_MINUTES = 10
 SESSION_DAYS = 30

@@ -129,7 +129,7 @@ def test_login_asks_to_set_password_when_none_is_configured(tmp_path, monkeypatc
 
 
 def test_too_short_initial_password_stops_the_server(tmp_path, monkeypatch):
-    monkeypatch.setenv("INITIAL_PASSWORD", "short")
+    monkeypatch.setenv("INITIAL_PASSWORD", "S")
     with pytest.raises(RuntimeError):
         build_app(tmp_path, "short.db")
 
@@ -160,7 +160,7 @@ def test_first_password_can_be_created_once_and_logs_in(empty_client):
 
 
 def test_first_password_must_be_long_enough(empty_client):
-    res = empty_client.post("/api/auth/setup", json={"password": "short"})
+    res = empty_client.post("/api/auth/setup", json={"password": "S"})
     assert res.status_code == 400
     assert res.json()["detail"]["code"] == "password_too_short"
     assert empty_client.get("/api/auth/status").json() == {"configured": False}
