@@ -3,11 +3,12 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.config import LOCK_MINUTES, MAX_FAILED_ATTEMPTS, SESSION_DAYS
+from app.config import LOCK_MINUTES, MAX_FAILED_ATTEMPTS, MIN_PASSWORD_LENGTH, SESSION_DAYS
 from app.models import AuthSession, AuthState
-from app.security import hash_token, new_token, verify_password
+from app.security import hash_password, hash_token, new_token, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -25,6 +26,10 @@ def get_db(request: Request):
 
 
 class LoginBody(BaseModel):
+    password: str
+
+
+class SetupBody(BaseModel):
     password: str
 
 
@@ -48,6 +53,33 @@ def require_auth(
     if session is None:
         raise unauthorized
     return session
+
+
+@router.get("/status")
+def status(db: Session = Depends(get_db)):
+    """로그인 화면이 '비밀번호 만들기'를 보여 줄지 정하는 데 씁니다. 비밀번호가 있는지 여부만 알려 줍니다."""
+    return {"configured": db.get(AuthState, 1) is not None}
+
+
+@router.post("/setup")
+def setup(body: SetupBody, db: Session = Depends(get_db)):
+    """비밀번호가 아직 없을 때 딱 한 번만 처음 비밀번호를 만들고, 바로 로그인된 상태로 통행증을 줍니다."""
+    if len(body.password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(status_code=400, detail={"code": "password_too_short", "min_length": MIN_PASSWORD_LENGTH})
+    if db.get(AuthState, 1) is not None:
+        raise HTTPException(status_code=409, detail={"code": "already_configured"})
+    db.add(AuthState(id=1, password_hash=hash_password(body.password)))
+    try:
+        db.commit()
+    except IntegrityError:  # 동시에 두 명이 만들려 한 경우: 먼저 저장된 쪽만 인정합니다
+        db.rollback()
+        raise HTTPException(status_code=409, detail={"code": "already_configured"}) from None
+    now = utcnow()
+    token = new_token()
+    expires_at = now + timedelta(days=SESSION_DAYS)
+    db.add(AuthSession(token_hash=hash_token(token), created_at=now, expires_at=expires_at))
+    db.commit()
+    return {"token": token, "expires_at": expires_at.isoformat() + "Z"}
 
 
 @router.post("/login")

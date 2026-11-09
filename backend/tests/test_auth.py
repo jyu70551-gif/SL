@@ -132,3 +132,41 @@ def test_too_short_initial_password_stops_the_server(tmp_path, monkeypatch):
     monkeypatch.setenv("INITIAL_PASSWORD", "short")
     with pytest.raises(RuntimeError):
         build_app(tmp_path, "short.db")
+
+
+@pytest.fixture
+def empty_client(tmp_path, monkeypatch, clock):
+    monkeypatch.setenv("INITIAL_PASSWORD", "")
+    with TestClient(build_app(tmp_path, "fresh.db")) as c:
+        yield c
+
+
+def test_status_tells_whether_a_password_exists(client, empty_client):
+    assert client.get("/api/auth/status").json() == {"configured": True}
+    assert empty_client.get("/api/auth/status").json() == {"configured": False}
+
+
+def test_first_password_can_be_created_once_and_logs_in(empty_client):
+    res = empty_client.post("/api/auth/setup", json={"password": TEST_PASSWORD})
+    assert res.status_code == 200
+    token = res.json()["token"]
+    assert empty_client.get("/api/auth/me", headers=bearer(token)).status_code == 200
+    assert empty_client.get("/api/auth/status").json() == {"configured": True}
+    assert login(empty_client).status_code == 200
+    again = empty_client.post("/api/auth/setup", json={"password": "another-password-1"})
+    assert again.status_code == 409
+    assert again.json()["detail"]["code"] == "already_configured"
+    assert login(empty_client, "another-password-1").status_code == 401
+
+
+def test_first_password_must_be_long_enough(empty_client):
+    res = empty_client.post("/api/auth/setup", json={"password": "short"})
+    assert res.status_code == 400
+    assert res.json()["detail"]["code"] == "password_too_short"
+    assert empty_client.get("/api/auth/status").json() == {"configured": False}
+
+
+def test_setup_is_refused_when_a_password_already_exists(client):
+    res = client.post("/api/auth/setup", json={"password": "another-password-1"})
+    assert res.status_code == 409
+    assert login(client).status_code == 200

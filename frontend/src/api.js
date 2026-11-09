@@ -1,11 +1,12 @@
-// 서버와 말하는 곳. 로그인 통행증(토큰)은 이 폰(브라우저)에 보관합니다.
+// 서버와 말하는 곳. 로그인 통행증(토큰)은 이 탭에만 보관해서, 창을 닫고 다시 들어오면 로그인 화면부터 나옵니다.
 // 앱으로 감싸더라도 같은 방식으로 쓸 수 있도록 쿠키가 아닌 헤더 방식입니다.
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 const TOKEN_KEY = "sl_token";
 
 export function getToken() {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY); // 예전 버전이 브라우저에 남겨 둔 통행증은 지웁니다
+    return sessionStorage.getItem(TOKEN_KEY);
   } catch {
     return null;
   }
@@ -13,7 +14,7 @@ export function getToken() {
 
 export function saveToken(token) {
   try {
-    localStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.setItem(TOKEN_KEY, token);
   } catch {
     // 저장할 수 없는 브라우저에서는 이번 접속에서만 로그인이 유지됩니다.
   }
@@ -21,7 +22,7 @@ export function saveToken(token) {
 
 export function clearToken() {
   try {
-    localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
   } catch {
     // 무시
   }

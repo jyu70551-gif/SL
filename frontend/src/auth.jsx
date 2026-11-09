@@ -51,7 +51,13 @@ export function AuthProvider({ children }) {
     setStatus("in");
   }, []);
 
+  const setup = useCallback(async (password) => {
+    const data = await request("/api/auth/setup", { method: "POST", body: { password } });
+    saveToken(data.token);
+    setStatus("in");
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ status, login, retry: check }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ status, login, setup, retry: check }}>{children}</AuthContext.Provider>
   );
 }
